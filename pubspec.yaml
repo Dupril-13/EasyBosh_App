@@ -1,0 +1,65 @@
+name: easybosh_v2
+description: "Application éducative pour les élèves en classe d'examen du Cameroun - Version 2"
+
+publish_to: 'none'
+
+version: 2.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.8
+  flutter_animate: ^4.5.0
+  font_awesome_flutter: ^10.7.0
+  iconsax_flutter: ^1.0.0
+
+  # Backend
+  supabase_flutter: ^2.5.0
+  flutter_dotenv: ^6.0.0
+
+  # State Management & Navigation
+  go_router: ^14.2.0
+  flutter_riverpod: ^2.4.9
+
+  # Data Models
+  equatable: ^2.0.5
+
+  # UI Components
+  fl_chart: ^0.68.0
+  percent_indicator: ^4.2.5
+  
+  # Utilities
+  url_launcher: ^6.3.2
+  shared_preferences: ^2.2.2
+  connectivity_plus: ^5.0.2
+  permission_handler: ^11.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - .env
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins/Poppins-Bold.ttf
+        - asset: assets/fonts/Poppins/Poppins-Italic.ttf
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/Logo_Easybosh.png"
