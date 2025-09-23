@@ -164,7 +164,7 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            'Progression',
+            'Avancée',
             '${(widget.matiere.progressionMoyenne * 100).toInt()}%',
             Icons.trending_up,
             Colors.orange,

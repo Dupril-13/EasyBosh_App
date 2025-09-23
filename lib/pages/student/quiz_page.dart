@@ -240,96 +240,118 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   Widget _buildQuizCategoryCard(Map<String, dynamic> categorie) {
-    final Color iconColor = categorie['color'] as Color;
+    final Color cardColor = categorie['color'] as Color;
     final IconData iconData = categorie['icon'] as IconData;
     final String nom = categorie['nom'] as String;
     final String temps = categorie['temps'] as String;
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minHeight: 190,
+        maxHeight: 190,
       ),
-      color: Colors.white,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          // Implémentation de la navigation vers le type de quiz sélectionné
-          switch (nom) {
-            case 'Quiz Rapide':
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Navigation vers Quiz Rapide'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-              break;
-            case 'Quiz par Matière':
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Navigation vers Quiz par Matière'),
-                  backgroundColor: Colors.blue,
-                ),
-              );
-              break;
-            case 'Quiz par Niveau':
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Navigation vers Quiz par Niveau'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              break;
-            case 'Quiz Challenge':
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Navigation vers Quiz Challenge'),
-                  backgroundColor: Colors.purple,
-                ),
-              );
-              break;
-            default:
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Navigation vers $nom'),
-                  backgroundColor: iconColor,
-                ),
-              );
-          }
-        },
-        child: Container(
-          constraints: const BoxConstraints(
-            minHeight: 150,
-            maxHeight: 150,
-          ),
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Icon(iconData, size: 36, color: iconColor),
-              const SizedBox(height: 8),
-              Text(
-                nom,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 2,
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              // Implémentation de la navigation vers le type de quiz sélectionné
+              switch (nom) {
+                case 'Quiz Rapide':
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Navigation vers Quiz Rapide'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  break;
+                case 'Quiz par Matière':
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Navigation vers Quiz par Matière'),
+                      backgroundColor: Colors.blue,
+                    ),
+                  );
+                  break;
+                case 'Quiz par Niveau':
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Navigation vers Quiz par Niveau'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  break;
+                case 'Quiz Challenge':
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Navigation vers Quiz Challenge'),
+                      backgroundColor: Colors.purple,
+                    ),
+                  );
+                  break;
+                default:
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Navigation vers $nom'),
+                      backgroundColor: cardColor,
+                    ),
+                  );
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cardColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      iconData,
+                      color: cardColor,
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    nom,
+                    style: const TextStyle(
+                      fontSize: 14, // Modifié de 15 à 14
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    temps,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                temps,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -242,7 +242,7 @@ class _CoursPageState extends State<CoursPage> {
                   Column(
                     children: [
                       SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.4,
+                        height: 316.0, // Fixed height for two rows of cards + spacing
                         child: PageView.builder(
                           controller: _pageController,
                           onPageChanged: (index) {
@@ -253,8 +253,7 @@ class _CoursPageState extends State<CoursPage> {
                           itemCount: (_matieres.length / 4).ceil(),
                           itemBuilder: (context, pageIndex) {
                             return Padding(
-                              padding: EdgeInsets.only(
-                                  right: pageIndex == (_matieres.length / 4).ceil() - 1 ? 0 : 16.0),
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0), // Added horizontal padding
                               child: GridView.builder(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
@@ -278,7 +277,7 @@ class _CoursPageState extends State<CoursPage> {
                           },
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 20.0), // Increased space before dots
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate((_matieres.length / 4).ceil(), (index) {

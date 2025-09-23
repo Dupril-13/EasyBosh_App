@@ -13,39 +13,19 @@ class _EpreuvesPageState extends State<EpreuvesPage> {
   int _currentIndex = 1;
 
   final List<Map<String, dynamic>> _categories = [
-    {'nom': 'Anciens Sujets d\'Examen', 'icon': Icons.history_edu_outlined, 'route': '/anciens_sujets', 'color': Colors.blue, 'nombreSujets': 120},
-    {'nom': 'Sujets de Collèges', 'icon': Icons.school_outlined, 'route': '/colleges_connus', 'color': Colors.orange, 'nombreSujets': 75},
+    {'nom': 'Anciens Sujets', 'icon': Icons.history_edu_outlined, 'route': '/anciens_sujets', 'color': Colors.blue, 'nombreSujets': 120},
+    {'nom': 'Etablissements', 'icon': Icons.school_outlined, 'route': '/colleges_connus', 'color': Colors.orange, 'nombreSujets': 75},
     {'nom': 'Examens Blancs', 'icon': Icons.lightbulb_outline, 'route': '/examens_blancs', 'color': Colors.green, 'nombreSujets': 50},
-    {'nom': 'Épreuves Exclusives', 'icon': Icons.star_border_outlined, 'route': '/epreuves_exclusives', 'color': Colors.purple, 'nombreSujets': 30},
+    {'nom': 'Exclusif', 'icon': Icons.star_border_outlined, 'route': '/epreuves_exclusives', 'color': Colors.purple, 'nombreSujets': 30},
   ];
 
   void _navigateToCategory(String route) {
-    // Implémentation de navigation vers la catégorie d'épreuves
-    switch (route) {
-      case '/anciens_sujets':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Navigation vers Anciens Sujets d\'Examen')),
-        );
-        break;
-      case '/colleges_connus':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Navigation vers Sujets de Collèges')),
-        );
-        break;
-      case '/examens_blancs':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Navigation vers Examens Blancs')),
-        );
-        break;
-      case '/epreuves_exclusives':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Navigation vers Épreuves Exclusives')),
-        );
-        break;
-      default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Catégorie non implémentée')),
-        );
+    if (route.isNotEmpty) {
+      context.go(route);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Route non définie pour cette catégorie')),
+      );
     }
   }
 
@@ -234,6 +214,15 @@ class _EpreuvesPageState extends State<EpreuvesPage> {
                   ),
 
                   const SizedBox(height: 24),
+                  const Text(
+                    'Types d\'epreuves',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
                   _buildCategoriesGrid(),
 
@@ -281,45 +270,75 @@ class _EpreuvesPageState extends State<EpreuvesPage> {
     );
   }
 
-  Widget _buildCategoryCard(Map<String, dynamic> category, Color iconColor) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+  Widget _buildCategoryCard(Map<String, dynamic> category, Color cardColor) {
+    final IconData iconData = category['icon'] as IconData;
+    final String nom = category['nom'] as String;
+    final int nombreSujets = category['nombreSujets'] as int? ?? 0;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minHeight: 190,
+        maxHeight: 190,
       ),
-      color: Colors.white,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _navigateToCategory(category['route']),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Icon(category['icon'] as IconData, size: 36, color: iconColor),
-              const SizedBox(height: 8),
-              Text(
-                category['nom'] as String,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 2,
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => _navigateToCategory(category['route'] as String? ?? ''),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cardColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      iconData,
+                      color: cardColor,
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    nom,
+                    style: const TextStyle(
+                      fontSize: 13, 
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '$nombreSujets sujets',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                '${category['nombreSujets'] ?? 0} sujets',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

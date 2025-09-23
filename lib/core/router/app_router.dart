@@ -17,6 +17,15 @@ import '../../pages/student/statistiques_page.dart';
 import '../../pages/student/settings_page.dart';
 import '../../pages/student/profile_page.dart';
 
+// Pages des catégories d'épreuves
+import '../../pages/student/epreuves/anciens_sujets_page.dart';
+import '../../pages/student/epreuves/sujets_colleges_page.dart';
+import '../../pages/student/epreuves/examens_blancs_page.dart';
+import '../../pages/student/epreuves/epreuves_exclusives_page.dart';
+import '../../pages/student/epreuves/epreuve_details_page.dart';
+import '../../pages/student/epreuves/epreuve_composition_page.dart';
+import '../../pages/student/epreuves/epreuve_correction_page.dart'; // Ajout de l'import
+
 /// Provider pour le router principal
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -88,6 +97,58 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/profile',
         name: 'profile',
         builder: (context, state) => const ProfilePage(),
+      ),
+
+      // Pages des catégories d'épreuves
+      GoRoute(
+        path: '/anciens_sujets',
+        name: 'anciensSujets',
+        builder: (context, state) => const AnciensSujetsPage(),
+      ),
+      GoRoute(
+        path: '/colleges_connus',
+        name: 'collegesConnus',
+        builder: (context, state) => const SujetsCollegesPage(),
+      ),
+      GoRoute(
+        path: '/examens_blancs',
+        name: 'examensBlancs',
+        builder: (context, state) => const ExamensBlancsPage(),
+      ),
+      GoRoute(
+        path: '/epreuves_exclusives',
+        name: 'epreuvesExclusives',
+        builder: (context, state) => const EpreuvesExclusivesPage(),
+      ),
+
+      // Page de détails d'une épreuve
+      GoRoute(
+        path: '/epreuve_details',
+        name: 'epreuveDetails',
+        builder: (context, state) {
+          final epreuveDetails = state.extra as Map<String, String>? ?? const {};
+          return EpreuveDetailsPage(epreuveDetails: epreuveDetails);
+        },
+      ),
+
+      // Page de composition d'une épreuve
+      GoRoute(
+        path: '/epreuve_composition',
+        name: 'epreuveComposition',
+        builder: (context, state) {
+          final epreuveDetails = state.extra as Map<String, String>? ?? const {};
+          return EpreuveCompositionPage(epreuveDetails: epreuveDetails);
+        },
+      ),
+
+      // Page de correction d'une épreuve
+      GoRoute(
+        path: '/epreuve_correction',
+        name: 'epreuveCorrection',
+        builder: (context, state) {
+          final epreuveDetails = state.extra as Map<String, String>? ?? const {};
+          return EpreuveCorrectionPage(epreuveDetails: epreuveDetails);
+        },
       ),
     ],
     errorBuilder: (context, state) => const _ErrorPage(),
