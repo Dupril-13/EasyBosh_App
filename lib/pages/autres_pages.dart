@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'shared/presentation/widgets/custom_navbar.dart';
+import '../widgets/custom_navbar.dart';
 
 // Épreuves Page (identique à votre V1)
 class EpreuvesPage extends StatefulWidget {

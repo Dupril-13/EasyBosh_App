@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../../../core/config/app_config.dart';
+import '../../core/config/app_config.dart';
 
 /// Page de démarrage affichée pendant l'initialisation
 class SplashPage extends StatelessWidget {

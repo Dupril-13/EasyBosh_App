@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../features/auth/data/models/user_model.dart';
+import '../../models/user_model.dart';
 import '../config/app_config.dart';
 
 /// État d'authentification

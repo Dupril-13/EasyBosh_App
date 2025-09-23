@@ -1,0 +1,444 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../widgets/custom_navbar.dart';
+
+class QuizPage extends StatefulWidget {
+  const QuizPage({super.key});
+
+  @override
+  State<QuizPage> createState() => _QuizPageState();
+}
+
+class _QuizPageState extends State<QuizPage> {
+  int _currentIndex = 2;
+
+  final List<Map<String, dynamic>> _quizCategories = [
+    {
+      'nom': 'Quiz Rapide',
+      'icon': Icons.flash_on,
+      'color': Colors.orange,
+      'description': 'Quiz de 5-10 questions pour réviser rapidement',
+      'temps': '5-10 min',
+      'niveau': 'Tous niveaux',
+    },
+    {
+      'nom': 'Quiz par Matière',
+      'icon': Icons.subject,
+      'color': Colors.blue,
+      'description': 'Quiz spécialisés par matière',
+      'temps': '15-30 min',
+      'niveau': 'Tous niveaux',
+    },
+    {
+      'nom': 'Quiz par Niveau',
+      'icon': Icons.grade,
+      'color': Colors.green,
+      'description': 'Quiz adaptés à votre niveau',
+      'temps': '20-45 min',
+      'niveau': 'Spécifique',
+    },
+    {
+      'nom': 'Quiz Challenge',
+      'icon': Icons.emoji_events,
+      'color': Colors.purple,
+      'description': 'Quiz difficiles pour se challenger',
+      'temps': '30-60 min',
+      'niveau': 'Avancé',
+    },
+  ];
+
+  final List<Map<String, dynamic>> _quizRecents = [
+    {
+      'titre': 'Quiz Mathématiques - Algèbre',
+      'matiere': 'Mathématiques',
+      'points': 15,
+      'score': 85,
+      'temps': '12 min',
+      'date': 'Aujourd\'hui',
+    },
+    {
+      'titre': 'Quiz Physique - Mécanique',
+      'matiere': 'Physique',
+      'points': 20,
+      'score': 72,
+      'temps': '18 min',
+      'date': 'Hier',
+    },
+    {
+      'titre': 'Quiz Français - Grammaire',
+      'matiere': 'Français',
+      'points': 10,
+      'score': 90,
+      'temps': '8 min',
+      'date': 'Il y a 2 jours',
+    },
+  ];
+
+  void _onNavTap(int index) {
+    if (index == _currentIndex) return;
+
+    setState(() {
+      _currentIndex = index;
+    });
+
+    // Navigation vers les autres pages
+    switch (index) {
+      case 0:
+        context.go('/cours');
+        break;
+      case 1:
+        context.go('/epreuves');
+        break;
+      case 3:
+        context.go('/statistiques');
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'Quiz',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
+        ),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.more_vert, color: Colors.grey[700]),
+            onPressed: () {
+              context.go('/settings');
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // En-tête avec image
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.purple, Colors.purple.shade700],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Testez vos connaissances !',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Quiz interactifs pour réviser efficacement',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(
+                            Icons.quiz,
+                            size: 40,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Section des catégories de quiz
+                  const Text(
+                    'Types de Quiz',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: 1.05,
+                    ),
+                    itemCount: _quizCategories.length,
+                    itemBuilder: (context, index) {
+                      final categorie = _quizCategories[index];
+                      return _buildQuizCategoryCard(categorie);
+                    },
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Section quiz récents
+                  const Text(
+                    'Quiz récents',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildQuizRecents(),
+                ],
+              ),
+            ),
+          ),
+          CustomNavBar(
+            currentIndex: _currentIndex,
+            onTap: _onNavTap,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuizCategoryCard(Map<String, dynamic> categorie) {
+    final Color iconColor = categorie['color'] as Color;
+    final IconData iconData = categorie['icon'] as IconData;
+    final String nom = categorie['nom'] as String;
+    final String temps = categorie['temps'] as String;
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      color: Colors.white,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          // Implémentation de la navigation vers le type de quiz sélectionné
+          switch (nom) {
+            case 'Quiz Rapide':
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Navigation vers Quiz Rapide'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+              break;
+            case 'Quiz par Matière':
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Navigation vers Quiz par Matière'),
+                  backgroundColor: Colors.blue,
+                ),
+              );
+              break;
+            case 'Quiz par Niveau':
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Navigation vers Quiz par Niveau'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              break;
+            case 'Quiz Challenge':
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Navigation vers Quiz Challenge'),
+                  backgroundColor: Colors.purple,
+                ),
+              );
+              break;
+            default:
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Navigation vers $nom'),
+                  backgroundColor: iconColor,
+                ),
+              );
+          }
+        },
+        child: Container(
+          constraints: const BoxConstraints(
+            minHeight: 150,
+            maxHeight: 150,
+          ),
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(iconData, size: 36, color: iconColor),
+              const SizedBox(height: 8),
+              Text(
+                nom,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                temps,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuizRecents() {
+    return Column(
+      children: _quizRecents.map((quiz) {
+        final int score = quiz['score'] as int;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 1,
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.purple,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      quiz['titre'] as String,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          quiz['matiere'] as String,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          '${quiz['points']} pts',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getScoreColor(score).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '$score%',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _getScoreColor(score),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    quiz['date'] as String,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Color _getScoreColor(int score) {
+    if (score >= 80) return Colors.green;
+    if (score >= 60) return Colors.orange;
+    return Colors.red;
+  }
+}

@@ -4,33 +4,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Pages d'authentification (vraies pages)
-import '../../features/onboarding/presentation/pages/get_started_page.dart';
-import '../../features/auth/presentation/pages/login_page.dart';
-import '../../features/auth/presentation/pages/signup_page.dart';
-import '../../features/auth/presentation/pages/verification_page.dart';
+import '../../pages/auth/get_started_page.dart';
+import '../../pages/auth/login_page.dart';
+import '../../pages/auth/signup_page.dart';
+import '../../pages/auth/verification_page.dart';
 
 // Pages principales
-import '../../features/cours/presentation/pages/cours_page.dart';
-import '../../features/epreuves/presentation/pages/epreuves_page.dart';
-import '../../features/quiz/presentation/pages/quiz_page.dart';
-import '../../features/statistiques/presentation/pages/statistiques_page.dart';
-import '../../features/settings/presentation/pages/settings_page.dart';
-import '../../features/profile/presentation/pages/profile_page.dart';
+import '../../pages/student/cours_page.dart';
+import '../../pages/student/epreuves_page.dart';
+import '../../pages/student/quiz_page.dart';
+import '../../pages/student/statistiques_page.dart';
+import '../../pages/student/settings_page.dart';
+import '../../pages/student/profile_page.dart';
 
 /// Provider pour le router principal
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/get-started',
+    initialLocation: '/cours',
     redirect: (context, state) {
-      final user = Supabase.instance.client.auth.currentUser;
-      final isAuthenticated = user != null;
+      final isAuthenticated = true;  // Forcer l'authentification
       final isOnboarding = state.matchedLocation == '/get-started';
       final isAuth = state.matchedLocation.startsWith('/auth');
-
-      // Si pas connecté et pas sur onboarding/auth -> onboarding
-      if (!isAuthenticated && !isOnboarding && !isAuth) {
-        return '/get-started';
-      }
 
       // Si connecté et sur onboarding/auth -> cours
       if (isAuthenticated && (isOnboarding || isAuth)) {

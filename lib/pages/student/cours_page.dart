@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../shared/presentation/widgets/custom_navbar.dart';
+import '../../widgets/custom_navbar.dart';
+import 'test_navigation_page.dart'; // Import for TestNavigationPage
+import '../../models/matiere_model.dart'; // Import for MatiereModel
+import 'matiere_detail_page.dart'; // Import for MatiereDetailPage
 
 class CoursPage extends StatefulWidget {
   const CoursPage({super.key});
@@ -173,7 +176,6 @@ class _CoursPageState extends State<CoursPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // En-tête identique à votre V1
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
@@ -266,8 +268,8 @@ class _CoursPageState extends State<CoursPage> {
                                 itemBuilder: (context, gridIndex) {
                                   final itemIndex = pageIndex * 4 + gridIndex;
                                   if (itemIndex < _matieres.length) {
-                                    final matiere = _matieres[itemIndex];
-                                    return _buildMatiereCard(matiere);
+                                    final matiereMap = _matieres[itemIndex];
+                                    return _buildMatiereCard(matiereMap);
                                   }
                                   return const SizedBox.shrink();
                                 },
@@ -318,7 +320,7 @@ class _CoursPageState extends State<CoursPage> {
     );
   }
 
-  Widget _buildMatiereCard(Map<String, dynamic> matiere) {
+  Widget _buildMatiereCard(Map<String, dynamic> matiereMap) {
     return ConstrainedBox(
       constraints: const BoxConstraints(
         minHeight: 150,
@@ -342,10 +344,43 @@ class _CoursPageState extends State<CoursPage> {
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Ouverture de ${matiere['nom']}'),
-                  backgroundColor: matiere['color'],
+              final int currentMatiereId = matiereMap['id'] ?? matiereMap['nom'].toString().hashCode;
+              List<String> chapitreNoms = List<String>.from(matiereMap['chapitres'] ?? []);
+              List<ChapitreModel> chapitresList = [];
+              for (int i = 0; i < chapitreNoms.length; i++) {
+                chapitresList.add(ChapitreModel(
+                  id: i, // Placeholder ID for chapitre
+                  matiereId: currentMatiereId,
+                  nom: chapitreNoms[i],
+                  description: '', 
+                  icon: Icons.subject, 
+                  color: Colors.grey,
+                  difficulte: 'Moyen',
+                  dureeEstimeeMinutes: 0,
+                  progression: 0.0,
+                  lecons: [],
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                ));
+              }
+
+              MatiereModel matiereAsModel = MatiereModel(
+                id: currentMatiereId,
+                nom: matiereMap['nom']?.toString() ?? 'N/A',
+                description: matiereMap['description']?.toString() ?? '',
+                icon: matiereMap['icon'] as IconData? ?? Icons.book,
+                color: matiereMap['color'] as Color? ?? Colors.blue,
+                niveaux: List<String>.from(matiereMap['niveaux'] ?? []),
+                series: List<String>.from(matiereMap['series'] ?? []),
+                chapitres: chapitresList,
+                createdAt: DateTime.now(), // Default value
+                updatedAt: DateTime.now(), // Default value
+              );
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MatiereDetailPage(matiere: matiereAsModel),
                 ),
               );
             },
@@ -358,18 +393,18 @@ class _CoursPageState extends State<CoursPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: matiere['color'].withOpacity(0.1),
+                      color: (matiereMap['color'] as Color? ?? Colors.blue).withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      matiere['icon'],
-                      color: matiere['color'],
+                      matiereMap['icon'] as IconData? ?? Icons.book,
+                      color: matiereMap['color'] as Color? ?? Colors.blue,
                       size: 30,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    matiere['nom'],
+                    matiereMap['nom']?.toString() ?? 'N/A',
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -381,7 +416,7 @@ class _CoursPageState extends State<CoursPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${matiere['chapitres'].length} chapitres',
+                    '${(matiereMap['chapitres'] as List<dynamic>? ?? []).length} chapitres',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[500],
