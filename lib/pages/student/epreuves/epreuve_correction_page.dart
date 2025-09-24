@@ -16,7 +16,13 @@ class EpreuveCorrectionPage extends StatelessWidget {
         elevation: 1,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700]),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/epreuves'); // Fallback vers la page principale des épreuves
+            }
+          },
         ),
         title: Text(
           'Correction: ${titreEpreuve.isNotEmpty ? titreEpreuve : "Épreuve"}',

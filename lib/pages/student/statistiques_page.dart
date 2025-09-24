@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import '../../widgets/custom_navbar.dart';
 
 class StatistiquesPage extends StatefulWidget {
@@ -76,7 +77,6 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
     },
   ];
 
-  /// Sécurise la division et retourne un double [0..1]
   double _safeDivide(num? a, num? b) {
     if (a == null || b == null || b == 0) return 0.0;
     final res = a / b;
@@ -102,11 +102,20 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
 
   @override
   Widget build(BuildContext context) {
+    const double fabBottomMargin = kBottomNavigationBarHeight + 24.0;
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Iconsax.notification, color: Colors.grey[700]),
+          onPressed: () {
+            context.go('/notifications');
+          },
+          tooltip: 'Notifications',
+        ),
         title: const Text(
           'Statistiques',
           style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 24),
@@ -114,10 +123,11 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.more_vert, color: Colors.grey[700]),
+            icon: Icon(Iconsax.setting_2, color: Colors.grey[700]),
             onPressed: () {
               context.go('/settings');
             },
+            tooltip: 'Paramètres',
           ),
         ],
       ),
@@ -153,6 +163,18 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
           CustomNavBar(currentIndex: _currentIndex, onTap: _onNavTap),
         ],
       ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: fabBottomMargin),
+        child: FloatingActionButton(
+          onPressed: () {
+            context.go('/chatbot');
+          },
+          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.9),
+          child: const Icon(Iconsax.message_question, color: Colors.white), // Changé pour Iconsax
+          tooltip: 'EasyBot',
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -191,7 +213,7 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
-              Icons.bar_chart,
+              Iconsax.chart_1, // Changé pour Iconsax pour cohérence
               size: 40,
               color: Colors.white,
             ),
@@ -202,14 +224,13 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
   }
 
   Widget _buildGlobalStats() {
-    // Valeurs factices (tu peux les lier à tes données)
     return Row(
       children: [
-        Expanded(child: _buildStatCard('Cours suivis', '68', Icons.book, Colors.blue)),
+        Expanded(child: _buildStatCard('Cours suivis', '68', Iconsax.book_1, Colors.blue)),
         const SizedBox(width: 16),
-        Expanded(child: _buildStatCard('Quiz complétés', '42', Icons.quiz, Colors.purple)),
+        Expanded(child: _buildStatCard('Quiz complétés', '42', Iconsax.message_question, Colors.purple)),
         const SizedBox(width: 16),
-        Expanded(child: _buildStatCard('Épreuves traitées', '24', Icons.assignment, Colors.orange)),
+        Expanded(child: _buildStatCard('Épreuves traitées', '24', Iconsax.document_text_1, Colors.orange)),
       ],
     );
   }
@@ -243,7 +264,6 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
   Widget _buildSelectedMatiereStats() {
     final matiere = _statsMatiere[_matiereSelectionnee];
 
-    // calculs fractionnels
     final coursFraction = _safeDivide(matiere['coursSuivis'], matiere['coursTotal']);
     final epreuvesFraction = _safeDivide(matiere['epreuvesTraitees'], matiere['epreuvesTotal']);
     final quizFraction = _safeDivide(matiere['quizResolus'], matiere['quizTotal']);
@@ -262,7 +282,6 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
           Text(matiere['matiere'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
 
-          // Barres de progression
           _buildProgressBarWithPercent(
             "Cours suivis (${matiere['coursSuivis']}/${matiere['coursTotal']})",
             coursFraction,
@@ -287,7 +306,6 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
           const Divider(),
           const SizedBox(height: 12),
 
-          // Section taux de réussite / échec (deux barres)
           const Text('Résultats des quiz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
 

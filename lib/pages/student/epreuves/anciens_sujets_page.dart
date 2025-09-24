@@ -69,7 +69,13 @@ class _AnciensSujetsPageState extends State<AnciensSujetsPage> {
         elevation: 1,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700]),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/epreuves'); // Fallback vers la page principale des épreuves
+            }
+          },
         ),
         title: const Text(
           'Anciens Sujets',
@@ -161,7 +167,7 @@ class _AnciensSujetsPageState extends State<AnciensSujetsPage> {
     required ValueChanged<String?> onChanged,
   }) {
     return Container(
-      width: 140, // Largeur fixe pour chaque filtre
+      width: 130, // Largeur réduite de 140 à 130
       padding: const EdgeInsets.symmetric(vertical: 4), // Espace vertical
       child: DropdownButtonFormField<String>(
         decoration: InputDecoration(

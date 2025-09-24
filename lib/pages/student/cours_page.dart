@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart'; // Ajout de l'import pour Iconsax
 import '../../widgets/custom_navbar.dart';
 import 'test_navigation_page.dart'; // Import for TestNavigationPage
 import '../../models/matiere_model.dart'; // Import for MatiereModel
@@ -145,11 +146,21 @@ class _CoursPageState extends State<CoursPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Hauteur approximative de la CustomNavBar + une marge augmentée
+    const double fabBottomMargin = kBottomNavigationBarHeight + 24.0; 
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Iconsax.notification, color: Colors.grey[700]), // Changé pour Iconsax
+          onPressed: () {
+            context.go('/notifications'); 
+          },
+          tooltip: 'Notifications',
+        ),
         title: const Text(
           'Cours',
           style: TextStyle(
@@ -161,10 +172,11 @@ class _CoursPageState extends State<CoursPage> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.more_vert, color: Colors.grey[700]),
+            icon: Icon(Iconsax.setting_2, color: Colors.grey[700]), // Changé pour Iconsax
             onPressed: () {
               context.go('/settings');
             },
+            tooltip: 'Paramètres',
           ),
         ],
       ),
@@ -242,7 +254,7 @@ class _CoursPageState extends State<CoursPage> {
                   Column(
                     children: [
                       SizedBox(
-                        height: 316.0, // Fixed height for two rows of cards + spacing
+                        height: 316.0, 
                         child: PageView.builder(
                           controller: _pageController,
                           onPageChanged: (index) {
@@ -253,7 +265,7 @@ class _CoursPageState extends State<CoursPage> {
                           itemCount: (_matieres.length / 4).ceil(),
                           itemBuilder: (context, pageIndex) {
                             return Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8.0), // Added horizontal padding
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0), 
                               child: GridView.builder(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
@@ -277,7 +289,7 @@ class _CoursPageState extends State<CoursPage> {
                           },
                         ),
                       ),
-                      const SizedBox(height: 20.0), // Increased space before dots
+                      const SizedBox(height: 20.0), 
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate((_matieres.length / 4).ceil(), (index) {
@@ -316,6 +328,18 @@ class _CoursPageState extends State<CoursPage> {
           ),
         ],
       ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: fabBottomMargin), 
+        child: FloatingActionButton(
+          onPressed: () {
+            context.go('/chatbot');
+          },
+          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.9), 
+          child: const Icon(Iconsax.message_question, color: Colors.white), // Changé pour Iconsax cohérence
+          tooltip: 'EasyBot',
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat, 
     );
   }
 
@@ -348,7 +372,7 @@ class _CoursPageState extends State<CoursPage> {
               List<ChapitreModel> chapitresList = [];
               for (int i = 0; i < chapitreNoms.length; i++) {
                 chapitresList.add(ChapitreModel(
-                  id: i, // Placeholder ID for chapitre
+                  id: i, 
                   matiereId: currentMatiereId,
                   nom: chapitreNoms[i],
                   description: '', 
@@ -372,8 +396,8 @@ class _CoursPageState extends State<CoursPage> {
                 niveaux: List<String>.from(matiereMap['niveaux'] ?? []),
                 series: List<String>.from(matiereMap['series'] ?? []),
                 chapitres: chapitresList,
-                createdAt: DateTime.now(), // Default value
-                updatedAt: DateTime.now(), // Default value
+                createdAt: DateTime.now(), 
+                updatedAt: DateTime.now(), 
               );
 
               Navigator.push(

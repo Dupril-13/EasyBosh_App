@@ -12,7 +12,13 @@ class EpreuvesExclusivesPage extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700]),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/epreuves'); // Fallback vers la page principale des épreuves
+            }
+          },
         ),
         title: const Text(
           'Épreuves Exclusives',

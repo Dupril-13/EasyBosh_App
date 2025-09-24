@@ -11,7 +11,7 @@ class ExamensBlancsPage extends StatefulWidget {
 class _ExamensBlancsPageState extends State<ExamensBlancsPage> {
   String? _selectedSession;
   String? _selectedMatiere;
-  String? _selectedEtablissement; // Peut être "Plateforme" ou un nom d'école
+  String? _selectedEtablissement;
 
   final List<String> _sessions = ['Juin 2024', 'Mars 2024', 'Décembre 2023', 'Septembre 2023'];
   final List<String> _matieres = ['Toutes les matières', 'Mathématiques', 'Physique-Chimie', 'SVT', 'Philosophie'];
@@ -36,7 +36,6 @@ class _ExamensBlancsPageState extends State<ExamensBlancsPage> {
         'session': _sessions[index % _sessions.length],
         'etablissement': _etablissements[(index + 1) % _etablissements.length],
         'duree': '${(index % 4) + 1}h',
-        // Pourrait avoir un champ 'type' : 'BEPC', 'Probatoire', 'Baccalauréat'
         'typeExamen': ['BEPC', 'Probatoire A', 'Probatoire C', 'Baccalauréat A', 'Baccalauréat C', 'Baccalauréat D'][index % 6],
       },
     );
@@ -75,7 +74,13 @@ class _ExamensBlancsPageState extends State<ExamensBlancsPage> {
         elevation: 1,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700]),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/epreuves');
+            }
+          },
         ),
         title: const Text(
           'Examens Blancs',
@@ -116,7 +121,7 @@ class _ExamensBlancsPageState extends State<ExamensBlancsPage> {
 
   Widget _buildFiltersRow() {
     return SizedBox(
-      height: 60,
+      height: 60, 
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
@@ -130,7 +135,7 @@ class _ExamensBlancsPageState extends State<ExamensBlancsPage> {
                 _filterEpreuves();
               });
             },
-            width: 150, // Largeur ajustée
+            width: 110,
           ),
           const SizedBox(width: 12),
           _buildDropdownFilter(
@@ -143,7 +148,7 @@ class _ExamensBlancsPageState extends State<ExamensBlancsPage> {
                 _filterEpreuves();
               });
             },
-            width: 170, // Largeur ajustée
+            width: 110,
           ),
           const SizedBox(width: 12),
           _buildDropdownFilter(
@@ -156,7 +161,7 @@ class _ExamensBlancsPageState extends State<ExamensBlancsPage> {
                 _filterEpreuves();
               });
             },
-            width: 190, // Largeur ajustée
+            width: 140,
           ),
         ],
       ),
@@ -164,26 +169,27 @@ class _ExamensBlancsPageState extends State<ExamensBlancsPage> {
   }
 
   Widget _buildDropdownFilter({
-    required String hint,
+    required String hint, // Ce "hint" sera utilisé pour InputDecoration.hintText
     required String? value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
-    double width = 150, // Largeur par défaut
+    double width = 150,
   }) {
     return Container(
       width: width,
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: DropdownButtonFormField<String>(
+        isDense: true,
         decoration: InputDecoration(
-          labelText: hint,
+          hintText: hint, // Utilisation de hintText au lieu de labelText
+          hintStyle: TextStyle(fontSize: 12.0, color: Colors.grey[600]),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12), // Ajusté
           filled: true,
           fillColor: Colors.white,
           isDense: true,
         ),
         value: value,
-        hint: Text(hint, style: const TextStyle(fontSize: 14)),
         items: items.map((String item) {
           return DropdownMenuItem<String>(
             value: item,
@@ -238,7 +244,7 @@ class _ExamensBlancsPageState extends State<ExamensBlancsPage> {
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
                     ),
-                    child: const Text('Voir Détails'), // Bouton peut-être "Commencer" directement si pas de détails ?
+                    child: const Text('Voir Détails'),
                   ),
                 ),
               ],

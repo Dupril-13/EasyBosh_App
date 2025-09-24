@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart'; // Ajout de l'import pour Iconsax
 import '../../widgets/custom_navbar.dart';
 
 class EpreuvesPage extends StatefulWidget {
@@ -127,11 +128,20 @@ class _EpreuvesPageState extends State<EpreuvesPage> {
 
   @override
   Widget build(BuildContext context) {
+    const double fabBottomMargin = kBottomNavigationBarHeight + 24.0;
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Iconsax.notification, color: Colors.grey[700]), // Changé pour Iconsax
+          onPressed: () {
+            context.go('/notifications'); 
+          },
+          tooltip: 'Notifications',
+        ),
         title: const Text(
           'Épreuves',
           style: TextStyle(
@@ -143,10 +153,11 @@ class _EpreuvesPageState extends State<EpreuvesPage> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.more_vert, color: Colors.grey[700]),
+            icon: Icon(Iconsax.setting_2, color: Colors.grey[700]), // Changé pour Iconsax
             onPressed: () {
               context.go('/settings');
             },
+            tooltip: 'Paramètres',
           ),
         ],
       ),
@@ -204,7 +215,7 @@ class _EpreuvesPageState extends State<EpreuvesPage> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: const Icon(
-                            Icons.assignment,
+                            Icons.assignment, // Peut être changé pour Iconsax.document si vous le souhaitez
                             size: 40,
                             color: Colors.white,
                           ),
@@ -249,6 +260,18 @@ class _EpreuvesPageState extends State<EpreuvesPage> {
           ),
         ],
       ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: fabBottomMargin),
+        child: FloatingActionButton(
+          onPressed: () {
+            context.go('/chatbot');
+          },
+          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.9),
+          child: const Icon(Iconsax.message_question, color: Colors.white), // Changé pour Iconsax
+          tooltip: 'EasyBot',
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -311,7 +334,7 @@ class _EpreuvesPageState extends State<EpreuvesPage> {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      iconData,
+                      iconData, // Les icônes des catégories peuvent rester Material pour l'instant
                       color: cardColor,
                       size: 30,
                     ),
@@ -425,19 +448,19 @@ class _EpreuvesPageState extends State<EpreuvesPage> {
                     Row(
                       children: [
                         _buildInfoChip(
-                          Icons.schedule,
+                          Icons.schedule, // Peut être Iconsax.clock
                           epreuve['duree'] as String,
                           Colors.blue,
                         ),
                         const SizedBox(width: 12),
                         _buildInfoChip(
-                          Icons.quiz,
+                          Icons.quiz, // Peut être Iconsax.message_question
                           '${epreuve['questions'] as int} questions',
                           Colors.purple,
                         ),
                         const SizedBox(width: 12),
                         _buildInfoChip(
-                          Icons.grade,
+                          Icons.grade, // Peut être Iconsax.award
                           epreuve['niveau'] as String,
                           Colors.green,
                         ),

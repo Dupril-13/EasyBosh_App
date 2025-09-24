@@ -13,27 +13,45 @@ class EpreuveCompositionPage extends StatefulWidget {
 
 class _EpreuveCompositionPageState extends State<EpreuveCompositionPage> {
   Timer? _timer;
-  int _dureeSecondes = 0; // La durée sera initialisée à partir des epreuveDetails
+  int _dureeSecondes = 0;
   bool _estEnPause = false;
 
   @override
   void initState() {
     super.initState();
-    // Convertir la durée (ex: "2h", "90min") en secondes et démarrer le timer
     _initialiserEtDemarrerTimer();
   }
 
   void _initialiserEtDemarrerTimer() {
-    String dureeStr = widget.epreuveDetails['duree'] ?? '0h'; // Durée par défaut 0 si non fournie
-    // Logique simple pour parser la durée. Peut être améliorée.
-    if (dureeStr.contains('h')) {
-      dureeStr = dureeStr.replaceAll('h', '');
-      int heures = int.tryParse(dureeStr.split(' ')[0]) ?? 0;
-      _dureeSecondes = heures * 3600;
-    } else if (dureeStr.contains('min')) {
-      dureeStr = dureeStr.replaceAll('min', '');
-      int minutes = int.tryParse(dureeStr.split(' ')[0]) ?? 0;
-      _dureeSecondes = minutes * 60;
+    String dureeStr = widget.epreuveDetails['duree'] ?? '0h';
+    _dureeSecondes = 0; // Réinitialiser avant parsing
+
+    // Tenter de parser XhYmin, Xh, Ymin
+    final RegExp heureMinRegex = RegExp(r'(?:(\d+)h)?(?:(\d+)min)?');
+    final match = heureMinRegex.firstMatch(dureeStr);
+
+    if (match != null) {
+      final heuresStr = match.group(1);
+      final minutesStr = match.group(2);
+
+      if (heuresStr != null) {
+        _dureeSecondes += (int.tryParse(heuresStr) ?? 0) * 3600;
+      }
+      if (minutesStr != null) {
+        _dureeSecondes += (int.tryParse(minutesStr) ?? 0) * 60;
+      }
+    } else {
+      // Fallback pour un format simple Xh ou Ymin si regex échoue (peu probable avec la regex actuelle)
+      if (dureeStr.contains('h') && !dureeStr.contains('min')) {
+        _dureeSecondes = (int.tryParse(dureeStr.replaceAll('h', '').trim()) ?? 0) * 3600;
+      } else if (dureeStr.contains('min') && !dureeStr.contains('h')) {
+        _dureeSecondes = (int.tryParse(dureeStr.replaceAll('min', '').trim()) ?? 0) * 60;
+      }
+    }
+
+    if (_dureeSecondes <= 0 && dureeStr != '0h') { // Si parsing a échoué et ce n'est pas 0h, log ou mettre une durée par défaut
+        print("Erreur de parsing de la durée: $dureeStr. Mise à 0 secondes.");
+        _dureeSecondes = 0;
     }
 
     if (_dureeSecondes > 0) {
@@ -45,10 +63,10 @@ class _EpreuveCompositionPageState extends State<EpreuveCompositionPage> {
             });
           } else {
             _timer?.cancel();
-            // TODO: Gérer la fin du temps (soumission automatique, etc.)
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Temps écoulé !')),
             );
+            // TODO: Gérer la fin du temps (soumission automatique, redirection?)
           }
         }
       });
@@ -61,13 +79,68 @@ class _EpreuveCompositionPageState extends State<EpreuveCompositionPage> {
     });
   }
 
-  void _arreterEpreuve() {
+  // Sera modifié pour la nouvelle logique de confirmation
+  void _arreterEpreuveEtVoirCorrection() {
     _timer?.cancel();
-    // TODO: Logique pour arrêter et peut-être soumettre l'épreuve
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Épreuve arrêtée.')),
+    // Naviguer vers la page de correction
+    // Assurez-vous que epreuveDetails est bien disponible et correct
+    context.go('/epreuve_correction', extra: widget.epreuveDetails);
+  }
+
+  void _arreterEpreuveEtQuitter() {
+    _timer?.cancel();
+    if (context.canPop()) {
+      context.pop(); // Revenir à la page des détails (ou la précédente dans la pile)
+    } else {
+      // Fallback si on ne peut pas pop (ex: page ouverte directement)
+      context.go('/epreuves'); 
+    }
+  }
+
+  void _afficherConfirmationArreter() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Arrêter l\'épreuve ?'),
+        content: const Text('Voulez-vous vraiment arrêter cette épreuve et voir la correction ?'),
+        actions: [
+          TextButton(
+            child: const Text('Non'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          TextButton(
+            child: const Text('Oui, voir correction', style: TextStyle(color: Colors.green)),
+            onPressed: () {
+              Navigator.of(ctx).pop(); // Ferme le dialogue
+              _arreterEpreuveEtVoirCorrection();
+            },
+          ),
+        ],
+      ),
     );
-    if (context.canPop()) context.pop(); // Revenir à la page des détails
+  }
+
+  void _afficherConfirmationQuitter() {
+     showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Quitter l\'épreuve ?'),
+          content: const Text('Si vous quittez, votre progression pourrait ne pas être sauvegardée. Êtes-vous sûr ?'),
+          actions: [
+            TextButton(
+              child: const Text('Rester'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+            TextButton(
+              child: const Text('Quitter', style: TextStyle(color: Colors.red)),
+              onPressed: () {
+                Navigator.of(ctx).pop(); // Ferme le dialogue
+                _arreterEpreuveEtQuitter(); // Arrête l'épreuve et pop la page
+              },
+            ),
+          ],
+        ),
+      );
   }
 
   @override
@@ -93,30 +166,7 @@ class _EpreuveCompositionPageState extends State<EpreuveCompositionPage> {
         elevation: 1,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700]),
-          // Prévenir le retour facile si l'épreuve est en cours
-          onPressed: () {
-            // Afficher une confirmation avant de quitter
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Quitter l\'épreuve ?'),
-                content: const Text('Si vous quittez, votre progression pourrait ne pas être sauvegardée. Êtes-vous sûr ?'),
-                actions: [
-                  TextButton(
-                    child: const Text('Rester'),
-                    onPressed: () => Navigator.of(ctx).pop(),
-                  ),
-                  TextButton(
-                    child: const Text('Quitter', style: TextStyle(color: Colors.red)),
-                    onPressed: () {
-                      Navigator.of(ctx).pop(); // Ferme le dialogue
-                      _arreterEpreuve(); // Arrête l'épreuve et pop la page
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
+          onPressed: _afficherConfirmationQuitter, // Utilise la modale de confirmation standard pour quitter
         ),
         title: Text(
           titreEpreuve,
@@ -139,7 +189,6 @@ class _EpreuveCompositionPageState extends State<EpreuveCompositionPage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Placeholder pour le contenu de l'épreuve
             const Expanded(
               child: Center(
                 child: Card(
@@ -156,7 +205,6 @@ class _EpreuveCompositionPageState extends State<EpreuveCompositionPage> {
               ),
             ),
             const SizedBox(height: 20),
-            // Boutons de contrôle
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -173,7 +221,7 @@ class _EpreuveCompositionPageState extends State<EpreuveCompositionPage> {
                 ElevatedButton.icon(
                   icon: const Icon(Icons.stop_circle_outlined),
                   label: const Text('Arrêter'),
-                  onPressed: _arreterEpreuve,
+                  onPressed: _afficherConfirmationArreter, // Utilise la nouvelle modale pour arrêter et voir correction
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,

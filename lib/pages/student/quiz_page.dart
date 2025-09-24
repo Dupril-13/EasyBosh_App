@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart'; // Ajout de l'import pour Iconsax
 import '../../widgets/custom_navbar.dart';
 
 class QuizPage extends StatefulWidget {
@@ -14,36 +15,40 @@ class _QuizPageState extends State<QuizPage> {
 
   final List<Map<String, dynamic>> _quizCategories = [
     {
-      'nom': 'Quiz Rapide',
-      'icon': Icons.flash_on,
-      'color': Colors.orange,
-      'description': 'Quiz de 5-10 questions pour réviser rapidement',
-      'temps': '5-10 min',
-      'niveau': 'Tous niveaux',
-    },
-    {
       'nom': 'Quiz par Matière',
       'icon': Icons.subject,
       'color': Colors.blue,
-      'description': 'Quiz spécialisés par matière',
-      'temps': '15-30 min',
+      'description': 'Quiz par chapitre, thème ou difficulté.',
+      'temps': '10-30 min',
       'niveau': 'Tous niveaux',
-    },
-    {
-      'nom': 'Quiz par Niveau',
-      'icon': Icons.grade,
-      'color': Colors.green,
-      'description': 'Quiz adaptés à votre niveau',
-      'temps': '20-45 min',
-      'niveau': 'Spécifique',
+      'route': '/quiz_par_matiere_selection', 
     },
     {
       'nom': 'Quiz Challenge',
       'icon': Icons.emoji_events,
       'color': Colors.purple,
-      'description': 'Quiz difficiles pour se challenger',
-      'temps': '30-60 min',
+      'description': 'Défis ardus et quiz originaux.',
+      'temps': '20-45 min',
       'niveau': 'Avancé',
+      'route': '/quiz_challenge_list', 
+    },
+    {
+      'nom': 'Révision Express',
+      'icon': Icons.flash_on, 
+      'color': Colors.orange,
+      'description': 'Révision rapide sur un sujet/chapitre.',
+      'temps': '5-15 min',
+      'niveau': 'Adapté',
+      'route': '/quiz_express_placeholder', 
+    },
+    {
+      'nom': 'Bilan par Niveau', 
+      'icon': Icons.school, 
+      'color': Colors.green,
+      'description': 'Maîtrise globale par niveau scolaire.',
+      'temps': '30-60 min',
+      'niveau': 'Spécifique',
+      'route': '/quiz_bilan_niveau_placeholder', 
     },
   ];
 
@@ -81,7 +86,6 @@ class _QuizPageState extends State<QuizPage> {
       _currentIndex = index;
     });
 
-    // Navigation vers les autres pages
     switch (index) {
       case 0:
         context.go('/cours');
@@ -97,11 +101,20 @@ class _QuizPageState extends State<QuizPage> {
 
   @override
   Widget build(BuildContext context) {
+    const double fabBottomMargin = kBottomNavigationBarHeight + 24.0;
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Iconsax.notification, color: Colors.grey[700]), // Changé pour Iconsax
+          onPressed: () {
+            context.go('/notifications'); 
+          },
+          tooltip: 'Notifications',
+        ),
         title: const Text(
           'Quiz',
           style: TextStyle(
@@ -113,10 +126,11 @@ class _QuizPageState extends State<QuizPage> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.more_vert, color: Colors.grey[700]),
+            icon: Icon(Iconsax.setting_2, color: Colors.grey[700]), // Changé pour Iconsax
             onPressed: () {
               context.go('/settings');
             },
+            tooltip: 'Paramètres',
           ),
         ],
       ),
@@ -128,7 +142,6 @@ class _QuizPageState extends State<QuizPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // En-tête avec image
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
@@ -174,7 +187,7 @@ class _QuizPageState extends State<QuizPage> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: const Icon(
-                            Icons.quiz,
+                            Iconsax.message_question, // Changé pour Iconsax pour cohérence avec FAB
                             size: 40,
                             color: Colors.white,
                           ),
@@ -182,10 +195,7 @@ class _QuizPageState extends State<QuizPage> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 24),
-
-                  // Section des catégories de quiz
                   const Text(
                     'Types de Quiz',
                     style: TextStyle(
@@ -195,7 +205,6 @@ class _QuizPageState extends State<QuizPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -203,7 +212,7 @@ class _QuizPageState extends State<QuizPage> {
                       crossAxisCount: 2,
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
-                      childAspectRatio: 1.05,
+                      childAspectRatio: 1.1, 
                     ),
                     itemCount: _quizCategories.length,
                     itemBuilder: (context, index) {
@@ -211,10 +220,7 @@ class _QuizPageState extends State<QuizPage> {
                       return _buildQuizCategoryCard(categorie);
                     },
                   ),
-
                   const SizedBox(height: 24),
-
-                  // Section quiz récents
                   const Text(
                     'Quiz récents',
                     style: TextStyle(
@@ -224,7 +230,6 @@ class _QuizPageState extends State<QuizPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   _buildQuizRecents(),
                 ],
               ),
@@ -236,21 +241,29 @@ class _QuizPageState extends State<QuizPage> {
           ),
         ],
       ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: fabBottomMargin),
+        child: FloatingActionButton(
+          onPressed: () {
+            context.go('/chatbot');
+          },
+          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.9),
+          child: const Icon(Iconsax.message_question, color: Colors.white), // Changé pour Iconsax
+          tooltip: 'EasyBot',
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
   Widget _buildQuizCategoryCard(Map<String, dynamic> categorie) {
     final Color cardColor = categorie['color'] as Color;
-    final IconData iconData = categorie['icon'] as IconData;
+    final IconData iconData = categorie['icon'] as IconData; // Les icônes des catégories peuvent rester Material
     final String nom = categorie['nom'] as String;
-    final String temps = categorie['temps'] as String;
+    final String description = categorie['description'] as String;
+    final String route = categorie['route'] as String? ?? '';
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(
-        minHeight: 190,
-        maxHeight: 190,
-      ),
-      child: Container(
+    return Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -268,57 +281,25 @@ class _QuizPageState extends State<QuizPage> {
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () {
-              // Implémentation de la navigation vers le type de quiz sélectionné
-              switch (nom) {
-                case 'Quiz Rapide':
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Navigation vers Quiz Rapide'),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                  break;
-                case 'Quiz par Matière':
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Navigation vers Quiz par Matière'),
-                      backgroundColor: Colors.blue,
-                    ),
-                  );
-                  break;
-                case 'Quiz par Niveau':
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Navigation vers Quiz par Niveau'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  break;
-                case 'Quiz Challenge':
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Navigation vers Quiz Challenge'),
-                      backgroundColor: Colors.purple,
-                    ),
-                  );
-                  break;
-                default:
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Navigation vers $nom'),
-                      backgroundColor: cardColor,
-                    ),
-                  );
+              if (route.isNotEmpty) {
+                context.go(route);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Route non définie pour $nom'),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
               }
             },
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12), 
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10), 
                     decoration: BoxDecoration(
                       color: cardColor.withOpacity(0.1),
                       shape: BoxShape.circle,
@@ -326,36 +307,41 @@ class _QuizPageState extends State<QuizPage> {
                     child: Icon(
                       iconData,
                       color: cardColor,
-                      size: 30,
+                      size: 28, 
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 8), 
                   Text(
                     nom,
                     style: const TextStyle(
-                      fontSize: 14, // Modifié de 15 à 14
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
                     ),
                     textAlign: TextAlign.center,
-                    maxLines: 2,
+                    maxLines: 1, 
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    temps,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
+                  Expanded(
+                    child: Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 11, 
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 3, 
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(height: 2), 
                 ],
               ),
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildQuizRecents() {
@@ -383,7 +369,7 @@ class _QuizPageState extends State<QuizPage> {
                 width: 8,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.purple,
+                  color: Colors.purple, 
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
