@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart'; // Ajout de l'import pour Iconsax
 import '../../widgets/custom_navbar.dart';
-import 'test_navigation_page.dart'; // Import for TestNavigationPage
 import '../../models/matiere_model.dart'; // Import for MatiereModel
-import 'matiere_detail_page.dart'; // Import for MatiereDetailPage
+import '../student/cours/matiere_detail_page.dart'; // Import for MatiereDetailPage
 
 class CoursPage extends StatefulWidget {
   const CoursPage({super.key});

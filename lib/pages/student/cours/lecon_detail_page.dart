@@ -1,6 +1,6 @@
 // lib/pages/student/lecon_detail_page.dart
 import 'package:flutter/material.dart';
-import '../../models/matiere_model.dart';
+import 'package:easybosh_v2/models/matiere_model.dart';
 
 class LeconDetailPage extends StatefulWidget {
   final MatiereModel matiere;

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
-import '../../pages/student/help_page.dart'; // Assurez-vous que cette page existe ou commentez l'import si non utilisée
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -16,13 +15,26 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _darkModeEnabled = false;
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  Map<String, dynamic>? _userModel;
+  Map<String, dynamic>? _userModel; // Will hold data from 'profiles' table
   bool _isLoading = true;
+
+  final _oldPasswordController = TextEditingController(); // Controller for old password
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _passwordFormKey = GlobalKey<FormState>();
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    _oldPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -34,9 +46,9 @@ class _SettingsPageState extends State<SettingsPage> {
       final user = _supabase.auth.currentUser;
       if (user != null) {
         final userData = await _supabase
-            .from('users')
+            .from('profiles') 
             .select()
-            .eq('uid', user.id)
+            .eq('id', user.id) 
             .single();
 
         if (mounted && userData != null) {
@@ -64,21 +76,21 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   String _getInitials() {
-    String initials = "U"; // Utilisateur par défaut
-    final String? firstName = _userModel?['prenom'];
-    final String? lastName = _userModel?['nom'];
+    String initials = "U";
+    final String? firstName = _userModel?['first_name']; 
+    final String? lastName = _userModel?['last_name'];
 
     if (firstName != null && firstName.isNotEmpty) {
       initials = firstName[0].toUpperCase();
       if (lastName != null && lastName.isNotEmpty) {
         initials += lastName[0].toUpperCase();
       } else if (firstName.length > 1) {
-        initials += firstName[1].toUpperCase();
+        initials += firstName[1].toUpperCase(); 
       }
     } else if (lastName != null && lastName.isNotEmpty) {
       initials = lastName[0].toUpperCase();
       if (lastName.length > 1) {
-        initials += lastName[1].toUpperCase();
+         initials += lastName[1].toUpperCase();
       }
     }
     return initials;
@@ -89,10 +101,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_isLoading) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text(
-            'Paramètres',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
-          ),
+          title: const Text('Paramètres', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
           centerTitle: true,
           backgroundColor: Theme.of(context).appBarTheme.backgroundColor ?? const Color(0xFFF5F5F5),
         ),
@@ -100,14 +109,12 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     }
 
-    final isEmailVerified = _supabase.auth.currentUser?.emailConfirmedAt != null;
+    final String userEmail = _supabase.auth.currentUser?.email ?? 'N/A';
+    final bool isEmailVerified = _supabase.auth.currentUser?.emailConfirmedAt != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Paramètres',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
-        ),
+        title: const Text('Paramètres', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
         centerTitle: true,
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor ?? const Color(0xFFF5F5F5),
       ),
@@ -123,14 +130,22 @@ class _SettingsPageState extends State<SettingsPage> {
                 backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                 child: Text(
                   _getInitials(),
-                  style: TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
+                  style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onPrimaryContainer),
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Text(
+                _userModel?['full_name'] ?? ((_userModel?['first_name'] ?? '') + ' ' + (_userModel?['last_name'] ?? '')).trim(),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            Text(
+              userEmail,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 20),
             _buildSection(
               context,
               title: 'Mon Profil',
@@ -138,22 +153,22 @@ class _SettingsPageState extends State<SettingsPage> {
                 _buildEditableField(
                   icon: Iconsax.user,
                   title: 'Nom',
-                  value: _userModel?['nom'] ?? 'N/A',
-                  onTap: () => _showEditDialog(context, 'Nom', _userModel?['nom'] ?? ''),
+                  value: _userModel?['last_name'] ?? 'N/A',
+                  onTap: () => _showEditDialog(context, 'Nom', _userModel?['last_name'] ?? ''),
                 ),
                 _buildEditableField(
-                  icon: Iconsax.user,
+                  icon: Iconsax.user_add,
                   title: 'Prénom',
-                  value: _userModel?['prenom'] ?? 'N/A',
-                  onTap: () => _showEditDialog(context, 'Prénom', _userModel?['prenom'] ?? ''),
+                  value: _userModel?['first_name'] ?? 'N/A',
+                  onTap: () => _showEditDialog(context, 'Prénom', _userModel?['first_name'] ?? ''),
                 ),
                 _buildEditableField(
                   icon: Iconsax.sms,
                   title: 'Email',
-                  value: _userModel?['email'] ?? _supabase.auth.currentUser?.email ?? 'N/A',
-                  onTap: () => _showEditDialog(context, 'Email', _userModel?['email'] ?? _supabase.auth.currentUser?.email ?? ''),
+                  value: userEmail,
+                  editable: false, 
                   verificationStatusWidget: Icon(
-                    isEmailVerified ? Iconsax.tick_circle : Iconsax.info_circle,
+                    isEmailVerified ? Iconsax.tick_circle_copy : Iconsax.info_circle_copy,
                     color: isEmailVerified ? Colors.green : Colors.orange,
                     size: 20,
                   ),
@@ -161,20 +176,26 @@ class _SettingsPageState extends State<SettingsPage> {
                 _buildEditableField(
                   icon: Iconsax.call,
                   title: 'Téléphone',
-                  value: _userModel?['telephone'] ?? 'N/A',
-                  onTap: () => _showEditDialog(context, 'Téléphone', _userModel?['telephone'] ?? ''),
+                  value: _userModel?['phone_number'] ?? 'N/A',
+                  onTap: () => _showEditDialog(context, 'Téléphone', _userModel?['phone_number'] ?? ''),
                 ),
                 _buildEditableField(
                   icon: Iconsax.teacher,
-                  title: 'Classe',
-                  value: _userModel?['classe'] ?? 'N/A',
-                  onTap: () => _showEditDialog(context, 'Classe', _userModel?['classe'] ?? ''),
+                  title: 'Niveau',
+                  value: _userModel?['student_level_code'] ?? 'N/A',
+                  onTap: () => _showEditDialog(context, 'Niveau', _userModel?['student_level_code'] ?? ''),
                 ),
                 _buildEditableField(
                   icon: Iconsax.book,
                   title: 'Série',
-                  value: _userModel?['serie'] ?? 'N/A',
-                  onTap: () => _showEditDialog(context, 'Série', _userModel?['serie'] ?? ''),
+                  value: _userModel?['student_serie_code'] ?? 'N/A',
+                  onTap: () => _showEditDialog(context, 'Série', _userModel?['student_serie_code'] ?? ''),
+                ),
+                 _buildListTile(
+                  icon: Iconsax.key,
+                  title: 'Changer le mot de passe',
+                  subtitle: 'Modifier votre mot de passe actuel',
+                  onTap: () => _showChangePasswordDialog(context),
                 ),
               ],
             ),
@@ -202,7 +223,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 _buildInfoTile(
                   icon: Iconsax.info_circle,
                   title: 'Version',
-                  subtitle: '2.0.0', 
+                  subtitle: '2.0.2', // Minor version bump for tracking changes
                 ),
                 _buildInfoTile(
                   icon: Iconsax.code,
@@ -231,7 +252,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: 'Aide et support',
                   subtitle: 'Consulter la FAQ ou contacter le support',
                   onTap: () {
-                     context.go('/help'); // CORRIGÉ: Navigation vers HelpPage
+                     context.go('/help');
                   },
                 ),
                 _buildListTile(
@@ -239,7 +260,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: 'Supprimer mon compte',
                   subtitle: 'Cette action est irréversible',
                   onTap: () {
-                    _showDeleteAccountDialog(context);
+                    _showDeleteAccountDialog(context); 
                   },
                   textColor: Colors.red,
                   iconColor: Colors.red,
@@ -298,9 +319,10 @@ class _SettingsPageState extends State<SettingsPage> {
     required IconData icon,
     required String title,
     required String value,
-    required VoidCallback onTap,
+    VoidCallback? onTap, 
     Color? iconColor,
     Widget? verificationStatusWidget,
+    bool editable = true,
   }) {
     return ListTile(
       leading: Icon(icon, color: iconColor ?? Theme.of(context).colorScheme.primary),
@@ -313,10 +335,11 @@ class _SettingsPageState extends State<SettingsPage> {
             verificationStatusWidget,
             const SizedBox(width: 8),
           ],
-          Icon(Iconsax.edit, color: Theme.of(context).colorScheme.secondary, size: 20),
+          if (editable)
+            Icon(Iconsax.edit, color: Theme.of(context).colorScheme.secondary, size: 20),
         ],
       ),
-      onTap: onTap,
+      onTap: editable ? onTap : null,
     );
   }
 
@@ -370,17 +393,17 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showEditDialog(BuildContext pageContext, String field, String currentValue) {
+  void _showEditDialog(BuildContext pageContext, String fieldTitle, String currentValue) {
     final TextEditingController controller = TextEditingController(text: currentValue);
     showDialog(
       context: pageContext,
       builder: (dialogContext) => AlertDialog(
-        title: Text('Modifier $field'),
+        title: Text('Modifier $fieldTitle'),
         content: TextFormField(
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(
-            labelText: field,
+            labelText: fieldTitle,
             border: const OutlineInputBorder(),
           ),
         ),
@@ -391,7 +414,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           ElevatedButton(
             onPressed: () async {
-              await _saveProfileField(dialogContext, field, controller.text.trim()); 
+              await _saveProfileField(dialogContext, fieldTitle, controller.text.trim()); 
             },
             child: const Text('Sauvegarder'),
           ),
@@ -400,7 +423,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _saveProfileField(BuildContext dialogContext, String field, String value) async {
+  Future<void> _saveProfileField(BuildContext dialogContext, String fieldTitle, String value) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     
     setState(() {
@@ -412,44 +435,44 @@ class _SettingsPageState extends State<SettingsPage> {
       if (user == null) throw Exception('Utilisateur non authentifié.');
 
       String columnName = '';
-      switch (field) {
+      switch (fieldTitle) {
         case 'Nom':
-          columnName = 'nom';
+          columnName = 'last_name';
           break;
         case 'Prénom':
-          columnName = 'prenom';
-          break;
-        case 'Email':
-          columnName = 'email';
+          columnName = 'first_name';
           break;
         case 'Téléphone':
-          columnName = 'telephone';
+          columnName = 'phone_number';
           break;
-        case 'Classe':
-          columnName = 'classe';
+        case 'Niveau':
+          columnName = 'student_level_code';
           break;
         case 'Série':
-          columnName = 'serie';
+          columnName = 'student_serie_code';
           break;
         default:
-          throw Exception('Champ inconnu pour la sauvegarde: $field');
+          throw Exception('Champ inconnu pour la sauvegarde: $fieldTitle');
       }
 
       await _supabase
-          .from('users')
+          .from('profiles')
           .update({columnName: value, 'updated_at': DateTime.now().toIso8601String()})
-          .eq('uid', user.id);
+          .eq('id', user.id);
 
       if (mounted) {
         setState(() {
           if (_userModel != null) {
             _userModel![columnName] = value;
+            if (columnName == 'first_name' || columnName == 'last_name') {
+                 _userModel!['full_name'] = (_userModel!['first_name'] ?? '') + ' ' + (_userModel!['last_name'] ?? '');
+            }
           }
         });
         Navigator.of(dialogContext).pop();
         scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text('$field modifié avec succès !'),
+            content: Text('$fieldTitle modifié avec succès !'),
             backgroundColor: Colors.green,
           ),
         );
@@ -459,7 +482,7 @@ class _SettingsPageState extends State<SettingsPage> {
         Navigator.of(dialogContext).pop();
         scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text('Erreur lors de la sauvegarde de $field: $e'),
+            content: Text('Erreur lors de la sauvegarde de $fieldTitle: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -473,13 +496,161 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  void _showChangePasswordDialog(BuildContext pageContext) {
+    _oldPasswordController.clear();
+    _newPasswordController.clear();
+    _confirmPasswordController.clear();
+    showDialog(
+      context: pageContext,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Changer le mot de passe'),
+        content: Form(
+          key: _passwordFormKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _oldPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Ancien mot de passe',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Iconsax.password_check),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Veuillez entrer votre ancien mot de passe.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _newPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Nouveau mot de passe',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Iconsax.lock_1),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Veuillez entrer un nouveau mot de passe.';
+                  }
+                  if (value.length < 6) {
+                    return 'Le mot de passe doit comporter au moins 6 caractères.';
+                  }
+                  // Optionally: check if new password is same as old if you want to enforce change
+                  // if (_oldPasswordController.text == value) {
+                  //   return 'Le nouveau mot de passe doit être différent de l\'ancien.';
+                  // }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _confirmPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Confirmer le nouveau mot de passe',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Iconsax.lock_slash),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Veuillez confirmer le nouveau mot de passe.';
+                  }
+                  if (value != _newPasswordController.text) {
+                    return 'Les mots de passe ne correspondent pas.';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (_passwordFormKey.currentState!.validate()) {
+                // Note: _oldPasswordController.text is captured but not directly used by Supabase updateUser.
+                // It's for UX validation; actual password change relies on the user being authenticated.
+                _handleChangePassword(dialogContext, _newPasswordController.text);
+              }
+            },
+            child: const Text('Sauvegarder'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleChangePassword(BuildContext dialogContext, String newPassword) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    bool dialogWasPopped = false;
+    bool mainPageIsLoading = _isLoading;
+
+    if(mounted) {
+      setState(() {
+        _isLoading = true; 
+      });
+    }
+    
+    try {
+      // Supabase updateUser for an authenticated user does not require the old password.
+      // The _oldPasswordController is for UX purposes as per the request.
+      await _supabase.auth.updateUser(UserAttributes(password: newPassword));
+      
+      if(mounted) {
+          Navigator.of(dialogContext).pop();
+          dialogWasPopped = true;
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              content: Text('Mot de passe modifié avec succès !'),
+              backgroundColor: Colors.green,
+            ),
+          );
+      }
+    } on AuthException catch (e) {
+      if (mounted) {
+        if (!dialogWasPopped) Navigator.of(dialogContext).pop(); 
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de la modification du mot de passe: ${e.message}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+       if (mounted) {
+        if (!dialogWasPopped) Navigator.of(dialogContext).pop();
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Une erreur inattendue est survenue: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+         setState(() {
+            _isLoading = mainPageIsLoading; 
+          });
+      }
+    }
+  }
+
   void _showDeleteAccountDialog(BuildContext pageContext) {
     showDialog(
       context: pageContext,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Supprimer le compte'),
         content: const Text(
-          'Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.',
+          'Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible et supprimera vos données de profil associées.',
         ),
         actions: [
           TextButton(
@@ -492,12 +663,19 @@ class _SettingsPageState extends State<SettingsPage> {
               final scaffoldMessenger = ScaffoldMessenger.of(pageContext); 
               final router = GoRouter.of(pageContext);
               bool dialogStillMounted = true;
+              bool mainPageIsLoading = _isLoading;
+
+              // Accessing _SettingsPageState's setState to show loading on the main page
+              final _SettingsPageState? parentState = pageContext.findAncestorStateOfType<_SettingsPageState>();
+              parentState?.setState(() {
+                parentState._isLoading = true;
+              });
 
               try {
                 final user = _supabase.auth.currentUser;
                 if (user == null) throw Exception('Utilisateur non authentifié.');
 
-                await _supabase.from('users').delete().eq('uid', user.id);
+                await _supabase.from('profiles').delete().eq('id', user.id);
                 await _supabase.auth.signOut();
                 
                 if (dialogContext.mounted) {
@@ -509,7 +687,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     router.go('/get-started');
                     scaffoldMessenger.showSnackBar(
                         const SnackBar(
-                        content: Text('Votre compte a été supprimé avec succès.'),
+                        content: Text('Votre profil a été supprimé et vous avez été déconnecté.'),
                         backgroundColor: Colors.green,
                         ),
                     );
@@ -522,11 +700,17 @@ class _SettingsPageState extends State<SettingsPage> {
                  if(pageContext.mounted) {
                     scaffoldMessenger.showSnackBar(
                         SnackBar(
-                        content: Text('Impossible de supprimer le compte: $e'),
+                        content: Text('Impossible de supprimer le profil: $e'),
                         backgroundColor: Colors.red,
                         ),
                     );
                  }
+              } finally {
+                if(pageContext.mounted) {
+                  parentState?.setState(() {
+                    parentState._isLoading = mainPageIsLoading;
+                  });
+                }
               }
             },
             child: const Text('Supprimer', style: TextStyle(color: Colors.white)),

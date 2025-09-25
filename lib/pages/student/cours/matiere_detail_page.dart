@@ -1,7 +1,7 @@
 // lib/pages/student/matiere_detail_page.dart
 import 'package:flutter/material.dart';
-import '../../models/matiere_model.dart';
-import 'chapitre_detail_page.dart';
+import 'package:easybosh_v2/models/matiere_model.dart';
+import '../cours/chapitre_detail_page.dart';
 
 class MatiereDetailPage extends StatefulWidget {
   final MatiereModel matiere;

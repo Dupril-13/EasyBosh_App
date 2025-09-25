@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:iconsax_flutter/iconsax_flutter.dart'; // Ajout de l'import Iconsax
+// import 'package:url_launcher/url_launcher.dart'; // No longer directly used here
+import 'package:iconsax_flutter/iconsax_flutter.dart';
+import 'dart:math' as math; // For math.pi for rotation
 
 class HelpPage extends StatefulWidget {
   const HelpPage({super.key});
@@ -10,6 +11,8 @@ class HelpPage extends StatefulWidget {
 }
 
 class _HelpPageState extends State<HelpPage> {
+  final Map<String, bool> _isExpandedMap = {};
+
   final List<Map<String, dynamic>> _faqItems = [
     {
       'id': 'commencer',
@@ -37,7 +40,7 @@ class _HelpPageState extends State<HelpPage> {
       'question': 'Puis-je utiliser l\'app hors ligne ?',
       'answer':
           'Certaines fonctionnalités peuvent nécessiter une connexion internet. La possibilité de télécharger du contenu pour un usage hors ligne est en cours de développement.',
-      'icon': Iconsax.document_download, // CORRIGÉ
+      'icon': Iconsax.document_download,
     },
     {
       'id': 'profil',
@@ -55,7 +58,14 @@ class _HelpPageState extends State<HelpPage> {
     },
   ];
 
-  // Méthode copiée et adaptée de settings_page.dart
+  @override
+  void initState() {
+    super.initState();
+    for (var item in _faqItems) {
+      _isExpandedMap[item['id']] = false;
+    }
+  }
+
   Widget _buildSection(BuildContext context, {
     required String title,
     required List<Widget> children,
@@ -91,17 +101,17 @@ class _HelpPageState extends State<HelpPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background, // Style settings_page
+      backgroundColor: Theme.of(context).colorScheme.background,
       appBar: AppBar(
         title: const Text(
-          'Aide et Support', // Titre mis à jour
+          'Aide et Support',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
         ),
         centerTitle: true,
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ?? const Color(0xFFF5F5F5), // Style settings_page
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ?? const Color(0xFFF5F5F5),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 8.0), // Padding général
+        padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 8.0),
         child: Column(
           children: [
             _buildSection(
@@ -121,31 +131,47 @@ class _HelpPageState extends State<HelpPage> {
   }
 
   Widget _buildFAQItem(Map<String, dynamic> faq) {
+    final String itemId = faq['id'];
+    final bool isCurrentlyExpanded = _isExpandedMap[itemId] ?? false;
+
     return ExpansionTile(
-      leading: Icon(faq['icon'] ?? Iconsax.info_circle, color: Theme.of(context).colorScheme.primary), // CORRIGÉ fallback icon
+      key: PageStorageKey<String>(itemId),
+      leading: Icon(faq['icon'] ?? Iconsax.info_circle, color: Theme.of(context).colorScheme.primary),
       title: Text(
         faq['question'],
         style: TextStyle(
           fontSize: 16,
-          fontWeight: FontWeight.w500, // Moins gras que le titre de section
+          fontWeight: FontWeight.w500,
           color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
-      // Icones d'expansion Iconsax
-      trailing: Icon(Iconsax.arrow_down_1, color: Theme.of(context).colorScheme.secondary),
-      // `onExpansionChanged` peut être utilisé pour changer l'icône si besoin (ex: arrow_up_2)
+      trailing: Transform.rotate(
+        angle: isCurrentlyExpanded ? math.pi : 0, // Rotate 180 degrees (pi radians) when expanded
+        child: Icon(
+          Iconsax.arrow_down_1, // Using a single icon that rotates
+          color: Theme.of(context).colorScheme.secondary,
+        ),
+      ),
+      onExpansionChanged: (bool expanded) {
+        setState(() {
+          _isExpandedMap[itemId] = expanded;
+        });
+      },
       childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      backgroundColor: Theme.of(context).colorScheme.surface, // Fond de l'item déplié
-      collapsedBackgroundColor: Theme.of(context).colorScheme.surface, // Fond de l'item replié
+      backgroundColor: Theme.of(context).colorScheme.surface, 
+      collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
+      tilePadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      shape: const Border(),
+      collapsedShape: const Border(),
       children: [
         Padding(
-          padding: const EdgeInsets.only(top: 8.0), // Espace avant la réponse
+          padding: const EdgeInsets.only(top: 8.0),
           child: Text(
             faq['answer'],
             style: TextStyle(
               fontSize: 14,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
-              height: 1.5, // Interligne
+              height: 1.5, 
             ),
           ),
         ),
@@ -169,13 +195,13 @@ class _HelpPageState extends State<HelpPage> {
           const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: () {
-              _showEmailDialog(context); // Contexte passé ici
+              _showEmailDialog(context);
             },
-            icon: Icon(Iconsax.sms, color: Theme.of(context).colorScheme.onPrimary), // Icône Iconsax
-            label: Text('Envoyer un Email', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
+            icon: Icon(Iconsax.sms, color: Theme.of(context).colorScheme.onPrimary),
+            label: Text('Nous contacter', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)), // Label updated
             style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary, // Couleur primaire du thème
-              minimumSize: const Size(double.infinity, 48), // Prend toute la largeur, hauteur 48
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              minimumSize: const Size(double.infinity, 48),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -187,62 +213,22 @@ class _HelpPageState extends State<HelpPage> {
     );
   }
 
-  void _showEmailDialog(BuildContext pageContext) { // pageContext pour le dialogue
+  void _showEmailDialog(BuildContext pageContext) {
     showDialog(
-      context: pageContext, // Utiliser le contexte passé
+      context: pageContext,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Contacter le support',
-          style: TextStyle(fontWeight: FontWeight.w600, color: Theme.of(pageContext).colorScheme.onSurface),
+          style: TextStyle(fontWeight: FontWeight.w600, color: Theme.of(dialogContext).colorScheme.onSurface),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            SelectableText(
               'Envoyez-nous un email à support@easybosh.com avec votre question. Nous vous répondrons dans les plus brefs délais.',
-              style: TextStyle(color: Theme.of(pageContext).colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () async {
-                final Uri emailLaunchUri = Uri(
-                  scheme: 'mailto',
-                  path: 'support@easybosh.com',
-                  queryParameters: {
-                    'subject': 'Support EasyBosh - Demande d\'aide', // Sujet amélioré
-                  },
-                );
-
-                try {
-                  if (await canLaunchUrl(emailLaunchUri)) {
-                    await launchUrl(emailLaunchUri);
-                  } else {
-                    throw 'Impossible de lancer $emailLaunchUri';
-                  }
-                  if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop();
-                  }
-                } catch (e) {
-                  if (dialogContext.mounted) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(
-                        content: Text('Impossible d\'ouvrir l\'application email: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              icon: Icon(Iconsax.send_2, color: Theme.of(dialogContext).colorScheme.onPrimary), // Icône Iconsax
-              label: Text('Ouvrir l\'application Email', style: TextStyle(color: Theme.of(dialogContext).colorScheme.onPrimary)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(dialogContext).colorScheme.primary,
-                foregroundColor: Theme.of(dialogContext).colorScheme.onPrimary,
-                minimumSize: const Size(double.infinity, 44),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
+              style: TextStyle(color: Theme.of(dialogContext).colorScheme.onSurfaceVariant),
             ),
           ],
         ),

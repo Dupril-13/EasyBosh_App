@@ -1,25 +1,66 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/providers/auth_provider.dart';
-import '../../../../core/config/app_config.dart';
-
-/// Page de connexion pour les enseignants et administrateurs
-class StaffLoginPage extends ConsumerStatefulWidget {
+class StaffLoginPage extends StatefulWidget {
   const StaffLoginPage({super.key});
 
   @override
-  ConsumerState<StaffLoginPage> createState() => _StaffLoginPageState();
+  State<StaffLoginPage> createState() => _StaffLoginPageState();
 }
 
-class _StaffLoginPageState extends ConsumerState<StaffLoginPage> {
+class _StaffLoginPageState extends State<StaffLoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  
-  bool _isPasswordVisible = false;
   bool _isLoading = false;
+
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Simulate network request & role check
+    // In a real app, this would be an API call to Supabase
+    await Future.delayed(const Duration(seconds: 1)); 
+
+    final email = _emailController.text;
+    final password = _passwordController.text;
+    String role = "none";
+
+    // TODO: Replace with actual Supabase authentication and role checking
+    // For now, using placeholder logic:
+    // admin@easybosh.com / adminpass -> admin
+    // teacher@easybosh.com / teacherpass -> teacher
+    if (email.toLowerCase() == 'admin@easybosh.com' && password == 'adminpass') {
+      role = "admin";
+    } else if (email.toLowerCase() == 'teacher@easybosh.com' && password == 'teacherpass') {
+      role = "teacher";
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (role == "admin") {
+      // ignore: use_build_context_synchronously
+      context.go('/admin-dashboard'); 
+    } else if (role == "teacher") {
+      // ignore: use_build_context_synchronously
+      context.go('/teacher-dashboard');
+    } else {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Identifiants incorrects ou rôle non autorisé.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -28,376 +69,167 @@ class _StaffLoginPageState extends ConsumerState<StaffLoginPage> {
     super.dispose();
   }
 
-  /// Connexion staff
-  Future<void> _signInStaff() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await ref.read(authStateProvider.notifier).signInWithEmail(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
-
-      // La navigation sera gérée automatiquement par le router selon le rôle
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Écouter l'état d'authentification pour les erreurs
-    ref.listen<AuthState>(authStateProvider, (previous, next) {
-      if (next is AuthError) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(next.message),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() {
-          _isLoading = false;
-        });
-      } else if (next is AuthAuthenticated) {
-        // Vérifier que c'est bien un membre du staff
-        if (!next.user.isStaff) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Accès réservé aux enseignants et administrateurs'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          ref.read(authStateProvider.notifier).signOut();
-        }
-      }
-    });
+    final screenWidth = MediaQuery.of(context).size.width;
+    bool isLargeScreen = screenWidth > 800; // Arbitrary breakpoint for desktop layout
 
     return Scaffold(
-      backgroundColor: Colors.grey[900],
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 40),
-
-                // Bouton retour
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    onPressed: () => context.go('/get-started'),
-                    icon: const Icon(
-                      Icons.arrow_back_ios,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Logo et titre pour staff
-                Column(
+      body: Row(
+        children: [
+          // Section Gauche (Informationnelle) - Visible seulement sur grand écran
+          if (isLargeScreen)
+            Expanded(
+              flex: 2, // Ajustez le flex pour la proportion souhaitée
+              child: Container(
+                color: Theme.of(context).primaryColor.withOpacity(0.05),
+                padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 60.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.orange, Colors.deepOrange],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.orange.withOpacity(0.3),
-                            spreadRadius: 2,
-                            blurRadius: 15,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.admin_panel_settings,
-                        size: 50,
-                        color: Colors.white,
-                      ),
+                    // TODO: Remplacez par votre logo (ex: Image.asset('assets/icons/Logo_Easybosh.png', height: 80))
+                    Icon(
+                      Icons.school_outlined, 
+                      size: 80,
+                      color: Theme.of(context).primaryColor,
                     ),
-                    const SizedBox(height: 32),
-                    const Text(
-                      'Espace Staff',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 32.0),
                     Text(
-                      'Connexion Enseignants & Administrateurs',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[400],
-                      ),
+                      'Bienvenue sur l\'Espace Staff Easybosh',
                       textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).primaryColorDark,
+                          ),
+                    ),
+                    const SizedBox(height: 16.0),
+                    Text(
+                      'Gérez efficacement vos cours, épreuves, quiz et analysez les performances des étudiants.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: Colors.black54,
+                            height: 1.5,
+                          ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '© ${DateTime.now().year} Easybosh. Tous droits réservés.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                     ),
                   ],
                 ),
+              ),
+            ),
 
-                const SizedBox(height: 48),
-
-                // Champ Email
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _buildStaffInputDecoration(
-                    labelText: 'Email professionnel',
-                    hintText: 'Entrez votre email professionnel',
-                    prefixIcon: Icons.email_outlined,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return AppConfig.requiredFieldMessage;
-                    }
-                    if (!RegExp(r'^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+').hasMatch(value)) {
-                      return AppConfig.invalidEmailMessage;
-                    }
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                // Champ Mot de passe
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: !_isPasswordVisible,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _buildStaffInputDecoration(
-                    labelText: 'Mot de passe',
-                    hintText: 'Entrez votre mot de passe',
-                    prefixIcon: Icons.lock_outline,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                        color: Colors.grey[400],
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return AppConfig.requiredFieldMessage;
-                    }
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 32),
-
-                // Bouton de connexion
-                SizedBox(
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _signInStaff,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 5,
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Text(
-                            'Accéder au dashboard',
-                            style: TextStyle(
-                              fontSize: 18,
+          // Section Droite (Formulaire de Connexion)
+          Expanded(
+            flex: isLargeScreen ? 3 : 5, // Prend plus de place sur petit écran
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 450), // Largeur max du formulaire
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(40.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      if (!isLargeScreen) ...[ // Afficher le logo et titre si la section gauche est cachée
+                        // TODO: Remplacez par votre logo
+                        Icon(
+                          Icons.school_outlined,
+                          size: 60,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                        const SizedBox(height: 24.0),
+                        Text(
+                          'Espace Staff Easybosh',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        const SizedBox(height: 32.0),
+                      ],
+                       Text(
+                        'Connectez-vous',
+                        textAlign: isLargeScreen ? TextAlign.start : TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
-                          ),
-                  ),
-                ),
-
-                const SizedBox(height: 48),
-
-                // Informations importantes
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[800],
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.orange.withOpacity(0.3),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.info_outline,
-                            color: Colors.orange,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Accès réservé',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.orange,
-                            ),
-                          ),
-                        ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8.0),
                       Text(
-                        '• Seuls les enseignants et administrateurs peuvent accéder à cet espace\n'
-                        '• Utilisez vos identifiants professionnels\n'
-                        '• En cas d\'oubli, contactez l\'administrateur système',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[300],
-                          height: 1.4,
+                        'Utilisez vos identifiants fournis par l\'administration.',
+                         textAlign: isLargeScreen ? TextAlign.start : TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
+                      ),
+                      const SizedBox(height: 32.0),
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            TextFormField(
+                              controller: _emailController,
+                              decoration: const InputDecoration(
+                                labelText: 'Adresse e-mail',
+                                prefixIcon: Icon(Icons.person_outline),
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: TextInputType.emailAddress,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Veuillez entrer votre adresse e-mail.';
+                                }
+                                if (!value.contains('@')) { // Validation simple
+                                  return 'Adresse e-mail invalide.';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16.0),
+                            TextFormField(
+                              controller: _passwordController,
+                              decoration: const InputDecoration(
+                                labelText: 'Mot de passe',
+                                prefixIcon: Icon(Icons.lock_outline),
+                                border: OutlineInputBorder(),
+                              ),
+                              obscureText: true,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Veuillez entrer votre mot de passe.';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 32.0),
+                            _isLoading
+                                ? const Center(child: CircularProgressIndicator())
+                                : ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                      backgroundColor: Theme.of(context).primaryColor,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8.0),
+                                      ),
+                                    ),
+                                    onPressed: _login,
+                                    child: const Text('Se Connecter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                  ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-
-                const SizedBox(height: 32),
-
-                // Lien vers espace étudiant
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Vous êtes étudiant ? ',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[400],
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => context.go('/login'),
-                      child: const Text(
-                        'Connectez-vous ici',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.orange,
-                          decoration: TextDecoration.underline,
-                          decorationColor: Colors.orange,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Contact support
-                Center(
-                  child: TextButton(
-                    onPressed: () {
-                      // TODO: Implémenter contact support
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Contactez: ${AppConfig.supportEmail}'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                    },
-                    child: Text(
-                      'Problème de connexion ? Contactez le support',
-                      style: TextStyle(
-                        color: Colors.grey[500],
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
-    );
-  }
-
-  /// Helper pour créer la décoration des champs de texte pour le staff
-  InputDecoration _buildStaffInputDecoration({
-    required String labelText,
-    required String hintText,
-    required IconData prefixIcon,
-    Widget? suffixIcon,
-  }) {
-    return InputDecoration(
-      labelText: labelText,
-      hintText: hintText,
-      prefixIcon: Icon(prefixIcon, color: Colors.grey[400]),
-      suffixIcon: suffixIcon,
-      labelStyle: TextStyle(color: Colors.grey[400]),
-      hintStyle: TextStyle(color: Colors.grey[500]),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: Colors.grey[700]!),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: Colors.grey[700]!),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.orange, width: 2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.red, width: 1),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.red, width: 2),
-      ),
-      filled: true,
-      fillColor: Colors.grey[800],
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
     );
   }
 }
