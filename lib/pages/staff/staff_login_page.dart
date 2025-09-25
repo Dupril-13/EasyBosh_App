@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StaffLoginPage extends StatefulWidget {
   const StaffLoginPage({super.key});
@@ -13,52 +14,83 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true; // Pour la visibilité du mot de passe
+  final _supabase = Supabase.instance.client;
 
   Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!mounted || !_formKey.currentState!.validate()) {
       return;
     }
     setState(() {
       _isLoading = true;
     });
 
-    // Simulate network request & role check
-    // In a real app, this would be an API call to Supabase
-    await Future.delayed(const Duration(seconds: 1)); 
+    try {
+      final AuthResponse res = await _supabase.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
 
-    final email = _emailController.text;
-    final password = _passwordController.text;
-    String role = "none";
+      if (!mounted) return;
 
-    // TODO: Replace with actual Supabase authentication and role checking
-    // For now, using placeholder logic:
-    // admin@easybosh.com / adminpass -> admin
-    // teacher@easybosh.com / teacherpass -> teacher
-    if (email.toLowerCase() == 'admin@easybosh.com' && password == 'adminpass') {
-      role = "admin";
-    } else if (email.toLowerCase() == 'teacher@easybosh.com' && password == 'teacherpass') {
-      role = "teacher";
+      if (res.user != null) {
+        final String? appRole = res.user?.appMetadata?['app_role'];
+        // ignore: avoid_print
+        print('App Role from Supabase: $appRole'); // Log pour débogage
+
+        if (appRole == 'admin') {
+          context.go('/admin/dashboard');
+        } else if (appRole == 'teacher') {
+          context.go('/teacher/dashboard');
+        } else {
+          await _supabase.auth.signOut();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Accès non autorisé pour ce rôle.'),
+                backgroundColor: Colors.redAccent,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Échec de la connexion. Utilisateur non trouvé.'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } on AuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message ?? 'Erreur d\'authentification.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Une erreur inattendue est survenue: ${e.toString()}'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
 
-    setState(() {
-      _isLoading = false;
-    });
-
-    if (role == "admin") {
-      // ignore: use_build_context_synchronously
-      context.go('/admin-dashboard'); 
-    } else if (role == "teacher") {
-      // ignore: use_build_context_synchronously
-      context.go('/teacher-dashboard');
-    } else {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Identifiants incorrects ou rôle non autorisé.'),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -69,18 +101,17 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
     super.dispose();
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    bool isLargeScreen = screenWidth > 800; // Arbitrary breakpoint for desktop layout
+    bool isLargeScreen = screenWidth > 800; 
 
     return Scaffold(
       body: Row(
         children: [
-          // Section Gauche (Informationnelle) - Visible seulement sur grand écran
           if (isLargeScreen)
             Expanded(
-              flex: 2, // Ajustez le flex pour la proportion souhaitée
+              flex: 2, 
               child: Container(
                 color: Theme.of(context).primaryColor.withOpacity(0.05),
                 padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 60.0),
@@ -88,12 +119,7 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // TODO: Remplacez par votre logo (ex: Image.asset('assets/icons/Logo_Easybosh.png', height: 80))
-                    Icon(
-                      Icons.school_outlined, 
-                      size: 80,
-                      color: Theme.of(context).primaryColor,
-                    ),
+                    Image.asset('assets/images/Easybosh_Logo.png', height: 80, errorBuilder: (context, error, stackTrace) => const Icon(Icons.error_outline, size: 80)), // Logo avec fallback
                     const SizedBox(height: 32.0),
                     Text(
                       'Bienvenue sur l\'Espace Staff Easybosh',
@@ -121,26 +147,19 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
                 ),
               ),
             ),
-
-          // Section Droite (Formulaire de Connexion)
           Expanded(
-            flex: isLargeScreen ? 3 : 5, // Prend plus de place sur petit écran
+            flex: isLargeScreen ? 3 : 5, 
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 450), // Largeur max du formulaire
+                constraints: const BoxConstraints(maxWidth: 450),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(40.0),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      if (!isLargeScreen) ...[ // Afficher le logo et titre si la section gauche est cachée
-                        // TODO: Remplacez par votre logo
-                        Icon(
-                          Icons.school_outlined,
-                          size: 60,
-                          color: Theme.of(context).primaryColor,
-                        ),
+                      if (!isLargeScreen) ...[
+                        Image.asset('assets/images/Easybosh_Logo.png', height: 60, errorBuilder: (context, error, stackTrace) => const Icon(Icons.error_outline, size: 60)), // Logo avec fallback
                         const SizedBox(height: 24.0),
                         Text(
                           'Espace Staff Easybosh',
@@ -182,7 +201,7 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
                                 if (value == null || value.isEmpty) {
                                   return 'Veuillez entrer votre adresse e-mail.';
                                 }
-                                if (!value.contains('@')) { // Validation simple
+                                if (!value.contains('@')) { 
                                   return 'Adresse e-mail invalide.';
                                 }
                                 return null;
@@ -191,12 +210,22 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
                             const SizedBox(height: 16.0),
                             TextFormField(
                               controller: _passwordController,
-                              decoration: const InputDecoration(
+                              obscureText: _obscurePassword,
+                              decoration: InputDecoration(
                                 labelText: 'Mot de passe',
-                                prefixIcon: Icon(Icons.lock_outline),
-                                border: OutlineInputBorder(),
+                                prefixIcon: const Icon(Icons.lock_outline),
+                                border: const OutlineInputBorder(),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
+                                ),
                               ),
-                              obscureText: true,
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
                                   return 'Veuillez entrer votre mot de passe.';
@@ -216,7 +245,7 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
                                         borderRadius: BorderRadius.circular(8.0),
                                       ),
                                     ),
-                                    onPressed: _login,
+                                    onPressed: _isLoading ? null : _login,
                                     child: const Text('Se Connecter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                   ),
                           ],

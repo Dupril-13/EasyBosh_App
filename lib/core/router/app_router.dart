@@ -62,10 +62,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/get-started', 
+    initialLocation: '/staff-login', // Modifié pour démarrer sur la page de connexion staff
     debugLogDiagnostics: true, 
 
     redirect: (BuildContext context, GoRouterState state) {
+      // Pour l'instant, aucune redirection globale. 
+      // Nous pourrons ajouter ici la logique pour rediriger un staff déjà connecté vers son dashboard.
       return null; 
     },
     routes: <RouteBase>[
@@ -293,7 +295,7 @@ class _ErrorPage extends StatelessWidget {
             ElevatedButton.icon(
               icon: const Icon(Icons.home_outlined),
               label: const Text('Retour à l\'accueil'),
-              onPressed: () => context.go('/get-started'),
+              onPressed: () => context.go('/get-started'), // Redirige vers la page de démarrage générale
             ),
           ],
         ),
