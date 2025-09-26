@@ -15,25 +15,12 @@ class SplashPage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Logo animé
-            Container(
+            SizedBox(
               width: 120,
               height: 120,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    spreadRadius: 2,
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.school,
-                size: 60,
-                color: Color(0xFF2196F3),
+              child: Image.asset(
+                'assets/images/Logo_Easybosh_no_bg.png',
+                // Vous pouvez ajouter un fit si nécessaire, par exemple BoxFit.contain
               ),
             )
                 .animate()

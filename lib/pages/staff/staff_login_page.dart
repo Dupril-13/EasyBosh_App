@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -103,15 +104,12 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
 
  @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    bool isLargeScreen = screenWidth > 800; 
-
     return Scaffold(
       body: Row(
         children: [
-          if (isLargeScreen)
-            Expanded(
-              flex: 2, 
+          // Panneau de gauche (toujours affiché)
+          Expanded(
+              flex: 2,
               child: Container(
                 color: Theme.of(context).primaryColor.withOpacity(0.05),
                 padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 60.0),
@@ -119,8 +117,8 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Image.asset('assets/images/Easybosh_Logo.png', height: 80, errorBuilder: (context, error, stackTrace) => const Icon(Icons.error_outline, size: 80)), // Logo avec fallback
-                    const SizedBox(height: 32.0),
+                    Image.asset('assets/images/Easybosh_staff_logo.png', height: 120, errorBuilder: (context, error, stackTrace) => const Icon(Icons.error_outline, size: 90)), // Logo avec fallback
+                    const SizedBox(height: 16.0),
                     Text(
                       'Bienvenue sur l\'Espace Staff Easybosh',
                       textAlign: TextAlign.center,
@@ -138,6 +136,13 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
                             height: 1.5,
                           ),
                     ),
+                    const SizedBox(height: 24.0), 
+                    Image.asset(
+                      'assets/images/Thesis-pana.png', 
+                      height: 220,
+                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported_outlined, size: 90) 
+                    ),
+                    const SizedBox(height: 24.0), 
                     const Spacer(),
                     Text(
                       '© ${DateTime.now().year} Easybosh. Tous droits réservés.',
@@ -147,8 +152,9 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
                 ),
               ),
             ),
+          // Panneau de droite (formulaire)
           Expanded(
-            flex: isLargeScreen ? 3 : 5, 
+            flex: 3,
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 450),
@@ -158,97 +164,109 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      if (!isLargeScreen) ...[
-                        Image.asset('assets/images/Easybosh_Logo.png', height: 60, errorBuilder: (context, error, stackTrace) => const Icon(Icons.error_outline, size: 60)), // Logo avec fallback
-                        const SizedBox(height: 24.0),
-                        Text(
-                          'Espace Staff Easybosh',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                      Container( // Conteneur extérieur pour la bordure
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Colors.blue, // Couleur de la bordure
+                            width: 2.0,       // Épaisseur de la bordure
+                          ),
+                          borderRadius: BorderRadius.circular(12.0), // Coins arrondis
                         ),
-                        const SizedBox(height: 32.0),
-                      ],
-                       Text(
-                        'Connectez-vous',
-                        textAlign: isLargeScreen ? TextAlign.start : TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const SizedBox(height: 8.0),
-                      Text(
-                        'Utilisez vos identifiants fournis par l\'administration.',
-                         textAlign: isLargeScreen ? TextAlign.start : TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
-                      ),
-                      const SizedBox(height: 32.0),
-                      Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            TextFormField(
-                              controller: _emailController,
-                              decoration: const InputDecoration(
-                                labelText: 'Adresse e-mail',
-                                prefixIcon: Icon(Icons.person_outline),
-                                border: OutlineInputBorder(),
-                              ),
-                              keyboardType: TextInputType.emailAddress,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Veuillez entrer votre adresse e-mail.';
-                                }
-                                if (!value.contains('@')) { 
-                                  return 'Adresse e-mail invalide.';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16.0),
-                            TextFormField(
-                              controller: _passwordController,
-                              obscureText: _obscurePassword,
-                              decoration: InputDecoration(
-                                labelText: 'Mot de passe',
-                                prefixIcon: const Icon(Icons.lock_outline),
-                                border: const OutlineInputBorder(),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        child: ClipRRect( // Pour que le BackdropFilter respecte les coins arrondis
+                          borderRadius: BorderRadius.circular(12.0),
+                          child: BackdropFilter(
+                            filter: ui.ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+                            child: Container( // Conteneur intérieur pour le padding et le contenu sur le flou
+                              padding: const EdgeInsets.all(24.0), // Padding pour le contenu
+                              color: Colors.transparent, // Changé pour être transparent
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text(
+                                    'Connectez-vous',
+                                    textAlign: TextAlign.start,
+                                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                   ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _obscurePassword = !_obscurePassword;
-                                    });
-                                  },
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Veuillez entrer votre mot de passe.';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 32.0),
-                            _isLoading
-                                ? const Center(child: CircularProgressIndicator())
-                                : ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 16.0),
-                                      backgroundColor: Theme.of(context).primaryColor,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8.0),
-                                      ),
+                                  const SizedBox(height: 8.0),
+                                  Text(
+                                    'Utilisez vos identifiants fournis par l\'administration.',
+                                    textAlign: TextAlign.start,
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
+                                  ),
+                                  const SizedBox(height: 32.0),
+                                  Form(
+                                    key: _formKey,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        TextFormField(
+                                          controller: _emailController,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Adresse e-mail',
+                                            prefixIcon: Icon(Icons.person_outline),
+                                            border: OutlineInputBorder(),
+                                          ),
+                                          keyboardType: TextInputType.emailAddress,
+                                          validator: (value) {
+                                            if (value == null || value.isEmpty) {
+                                              return 'Veuillez entrer votre adresse e-mail.';
+                                            }
+                                            if (!value.contains('@')) { 
+                                              return 'Adresse e-mail invalide.';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 16.0),
+                                        TextFormField(
+                                          controller: _passwordController,
+                                          obscureText: _obscurePassword,
+                                          decoration: InputDecoration(
+                                            labelText: 'Mot de passe',
+                                            prefixIcon: const Icon(Icons.lock_outline),
+                                            border: const OutlineInputBorder(),
+                                            suffixIcon: IconButton(
+                                              icon: Icon(
+                                                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                              ),
+                                              onPressed: () {
+                                                setState(() {
+                                                  _obscurePassword = !_obscurePassword;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                          validator: (value) {
+                                            if (value == null || value.isEmpty) {
+                                              return 'Veuillez entrer votre mot de passe.';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 32.0),
+                                        _isLoading
+                                            ? const Center(child: CircularProgressIndicator())
+                                            : ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                                  backgroundColor: Theme.of(context).primaryColor,
+                                                  foregroundColor: Colors.white,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(8.0),
+                                                  ),
+                                                ),
+                                                onPressed: _isLoading ? null : _login,
+                                                child: const Text('Se Connecter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                              ),
+                                      ],
                                     ),
-                                    onPressed: _isLoading ? null : _login,
-                                    child: const Text('Se Connecter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                   ),
-                          ],
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ],

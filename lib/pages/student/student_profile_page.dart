@@ -138,7 +138,9 @@ class StudentProfilePage extends ConsumerWidget {
                         ListTile(
                           leading: Icon(supabaseUser.emailConfirmedAt != null ? Icons.verified_user_outlined : Icons.warning_amber_rounded, color: supabaseUser.emailConfirmedAt != null ? Colors.green : Colors.orangeAccent),
                           title: const Text('Email Vérifié'),
-                          subtitle: Text(supabaseUser.emailConfirmedAt != null ? 'Oui, le ${supabaseUser.emailConfirmedAt?.toLocal().toString().split(' ').first}' : 'Non'),
+                          subtitle: Text(supabaseUser.emailConfirmedAt != null
+                              ? 'Oui, le ${(DateTime.tryParse(supabaseUser.emailConfirmedAt!)?.toLocal().toString().split(' ').first) ?? 'date invalide'}'
+                              : 'Non'),
                         ),
                         ListTile(
                           leading: const Icon(Icons.update_outlined, color: Colors.blueAccent),

@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+// Provider & Listenable
+// AuthStateListenable est maintenant défini dans auth_provider.dart
+import '../../providers/auth_provider.dart'; 
+
 // Pages d'authentification
 import '../../pages/auth/get_started_page.dart';
 import '../../pages/auth/login_page.dart';
 import '../../pages/auth/signup_page.dart';
 import '../../pages/auth/verification_page.dart';
 
-// Pages Étudiant
+// Pages Étudiant (imports omis pour la concision)
 import '../../pages/student/cours_page.dart';
 import '../../pages/student/epreuves_page.dart';
 import '../../pages/student/quiz_page.dart';
@@ -32,7 +36,7 @@ import '../../pages/student/quiz/quiz_challenge_list_page.dart';
 import '../../pages/student/quiz/quiz_results_page.dart';
 import '../../pages/chatbot/chatbot_page.dart';
 
-// Pages Staff (Login et Dashboards placeholders)
+// Pages Staff
 import '../../pages/staff/staff_login_page.dart';
 import '../../pages/staff/admin/admin_dashboard_page.dart';
 import '../../pages/staff/admin/manage_teachers_page.dart';
@@ -55,19 +59,69 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(de
 final GlobalKey<NavigatorState> _adminShellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'adminShell');
 final GlobalKey<NavigatorState> _teacherShellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'teacherShell');
 
-
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // TODO: Auth logic with Riverpod for redirection
-  // final authState = ref.watch(authNotifierProvider);
+  final authNotifier = ref.watch(authProvider.notifier);
+  // Création de l'instance de AuthStateListenable, le pont pour GoRouter
+  final authListenable = AuthStateListenable(authNotifier);
+
+  ref.onDispose(() {
+    authListenable.dispose();
+  });
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/staff-login', // Modifié pour démarrer sur la page de connexion staff
-    debugLogDiagnostics: true, 
+    initialLocation: '/staff-login', // Modifié ici pour revenir à /staff-login
+    debugLogDiagnostics: true,
+    refreshListenable: authListenable, // Utilisation de notre classe pont
 
     redirect: (BuildContext context, GoRouterState state) {
-      // Pour l'instant, aucune redirection globale. 
-      // Nous pourrons ajouter ici la logique pour rediriger un staff déjà connecté vers son dashboard.
+      final bool isLoggedIn = authNotifier.isLoggedIn;
+      final String? userRole = authNotifier.userRole;
+
+      final String currentLocation = state.uri.path;
+
+      const List<String> publicAuthPaths = [
+        '/staff-login',
+        '/auth/login',
+        '/auth/signup',
+        '/get-started',
+      ];
+      const String verificationPath = '/auth/verification';
+
+      final bool isOnPublicAuthPath = publicAuthPaths.contains(currentLocation);
+      final bool isOnVerificationPath = currentLocation == verificationPath;
+
+      if (!isLoggedIn) {
+        if (!isOnPublicAuthPath && !isOnVerificationPath) {
+          // Si l'utilisateur n'est pas connecté et essaie d'accéder à une page non publique
+          // et non la page de vérification, le rediriger vers la page de login staff.
+          return '/staff-login'; // Modifié ici
+        }
+      } else {
+        // Utilisateur connecté
+        if (isOnPublicAuthPath) {
+          // Si l'utilisateur connecté est sur une page d'authentification publique, le rediriger vers son dashboard approprié.
+          if (userRole == 'admin') {
+            return '/admin/dashboard';
+          } else if (userRole == 'teacher') {
+            return '/teacher/dashboard';
+          } else if (userRole == 'student') {
+            // TO DO: Ajouter la redirection vers le dashboard étudiant si elle existe
+            // return '/student/dashboard'; // Exemple
+             return '/cours'; // Redirection temporaire vers la page des cours pour étudiant
+          } else {
+            // Rôle inconnu ou non géré, rediriger vers staff-login (ou get-started si vous préférez)
+            return '/staff-login'; 
+          }
+        }
+        // Logique supplémentaire si l'utilisateur est connecté mais essaie d'accéder à une page non autorisée pour son rôle.
+        if (userRole == 'student' && (currentLocation.startsWith('/admin') || currentLocation.startsWith('/teacher'))) {
+          return '/cours'; // Ou une page 'accès refusé' pour étudiant
+        }
+        if (userRole == 'teacher' && currentLocation.startsWith('/admin')) {
+          return '/teacher/dashboard'; // Ou une page 'accès refusé' pour enseignant
+        }
+      }
       return null; 
     },
     routes: <RouteBase>[
@@ -102,8 +156,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'staffLogin',
         builder: (context, state) => const StaffLoginPage(),
       ),
-
-      // --- Admin Section Shell ---
+      GoRoute(
+        path: '/admin/dashboard',
+        name: 'adminDashboard',
+        builder: (BuildContext context, GoRouterState state) =>
+            const AdminDashboardPage(),
+      ),
+      GoRoute(
+        path: '/teacher/dashboard',
+        name: 'teacherDashboard',
+        builder: (BuildContext context, GoRouterState state) =>
+            const TeacherDashboardPage(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return AdminShellPage(navigationShell: navigationShell);
@@ -111,16 +175,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         branches: <StatefulShellBranch>[
           StatefulShellBranch(
             navigatorKey: _adminShellNavigatorKey, 
-            routes: <RouteBase>[
-              GoRoute(
-                path: '/admin/dashboard',
-                name: 'adminDashboard',
-                builder: (BuildContext context, GoRouterState state) =>
-                    const AdminDashboardPage(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
                 path: '/admin/manage-teachers',
@@ -158,8 +212,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-
-      // --- Teacher Section Shell ---
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return TeacherShellPage(navigationShell: navigationShell);
@@ -167,15 +219,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         branches: <StatefulShellBranch>[
           StatefulShellBranch(
             navigatorKey: _teacherShellNavigatorKey, 
-            routes: <RouteBase>[
-              GoRoute(
-                path: '/teacher/dashboard',
-                name: 'teacherDashboard',
-                builder: (BuildContext context, GoRouterState state) => const TeacherDashboardPage(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
                 path: '/teacher/manage-courses',
@@ -222,8 +265,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-
-      // --- Routes Étudiant --- 
       GoRoute(path: '/cours', name: 'cours', builder: (context, state) => const CoursPage()),
       GoRoute(path: '/epreuves', name: 'epreuves', builder: (context, state) => const EpreuvesPage()),
       GoRoute(path: '/quiz',name: 'quiz',builder: (context, state) => const QuizPage()),
@@ -264,7 +305,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return QuizResultsPage(results: results ?? QuizResultsPage.getDummyResults());
       }),
       GoRoute(path: '/chatbot', name: 'chatbot', builder: (context, state) => const ChatbotPage()),
-
     ],
     errorBuilder: (context, state) => _ErrorPage(error: state.error),
   );
@@ -295,7 +335,7 @@ class _ErrorPage extends StatelessWidget {
             ElevatedButton.icon(
               icon: const Icon(Icons.home_outlined),
               label: const Text('Retour à l\'accueil'),
-              onPressed: () => context.go('/get-started'), // Redirige vers la page de démarrage générale
+              onPressed: () => context.go('/staff-login'), // Modifié pour pointer vers /staff-login en cas d'erreur de route
             ),
           ],
         ),

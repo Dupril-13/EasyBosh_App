@@ -1,31 +1,31 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart'; // Importé pour ChangeNotifier
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:easybosh_v2/models/profile_model.dart'; // Vérifiez ce chemin
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
+import 'package:easybosh_v2/models/profile_model.dart';
 
-// État de l'authentification et du profil
-class AuthState {
-  final User? supabaseUser; 
+class AuthStateData {
+  final supabase.User? supabaseUser;
   final ProfileModel? userProfile;
   final bool isLoading;
   final String? errorMessage;
 
-  AuthState({
+  AuthStateData({
     this.supabaseUser,
     this.userProfile,
     this.isLoading = false,
     this.errorMessage,
   });
 
-  AuthState copyWith({
-    User? supabaseUser,
+  AuthStateData copyWith({
+    supabase.User? supabaseUser,
     ProfileModel? userProfile,
     bool? isLoading,
     String? errorMessage,
     bool clearSupabaseUser = false,
     bool clearUserProfile = false,
   }) {
-    return AuthState(
+    return AuthStateData(
       supabaseUser: clearSupabaseUser ? null : supabaseUser ?? this.supabaseUser,
       userProfile: clearUserProfile ? null : userProfile ?? this.userProfile,
       isLoading: isLoading ?? this.isLoading,
@@ -34,36 +34,36 @@ class AuthState {
   }
 }
 
-class AuthNotifier extends StateNotifier<AuthState> {
-  final SupabaseClient _supabaseClient;
-  StreamSubscription<AuthStateChanges>? _authStateSubscription;
+class AuthNotifier extends StateNotifier<AuthStateData> {
+  final supabase.SupabaseClient _supabaseClient;
+  StreamSubscription<supabase.AuthState>? _authStateSubscription;
 
-  AuthNotifier(this._supabaseClient) : super(AuthState(isLoading: true)) {
+  AuthNotifier(this._supabaseClient) : super(AuthStateData(isLoading: true)) {
     _initialize();
   }
 
   Future<void> _initialize() async {
     _authStateSubscription = _supabaseClient.auth.onAuthStateChange.listen((data) async {
-      final AuthChangeEvent event = data.event;
-      final Session? session = data.session;
+      final supabase.AuthChangeEvent event = data.event;
+      final supabase.Session? session = data.session;
 
-      if (event == AuthChangeEvent.signedIn) {
+      if (event == supabase.AuthChangeEvent.signedIn) {
         if (session != null && session.user != null) {
           state = state.copyWith(supabaseUser: session.user, isLoading: true, errorMessage: null);
           await _fetchUserProfile(session.user.id);
         } else {
           state = state.copyWith(isLoading: false, supabaseUser: null, userProfile: null, errorMessage: "Session invalide après connexion.");
         }
-      } else if (event == AuthChangeEvent.signedOut) {
+      } else if (event == supabase.AuthChangeEvent.signedOut) {
         state = state.copyWith(clearSupabaseUser: true, clearUserProfile: true, isLoading: false, errorMessage: null);
-      } else if (event == AuthChangeEvent.userUpdated) {
+      } else if (event == supabase.AuthChangeEvent.userUpdated) {
         if (session != null && session.user != null) {
-          state = state.copyWith(supabaseUser: session.user, isLoading: state.userProfile == null); // Ne charge que si le profil n'est pas déjà là
+          state = state.copyWith(supabaseUser: session.user, isLoading: state.userProfile == null);
           if (state.userProfile == null || state.userProfile!.id != session.user.id) {
              await _fetchUserProfile(session.user.id);
           }
         }
-      } else if (event == AuthChangeEvent.tokenRefreshed) {
+      } else if (event == supabase.AuthChangeEvent.tokenRefreshed) {
         if (session != null && session.user != null) {
           state = state.copyWith(supabaseUser: session.user);
           if (state.userProfile == null || state.userProfile!.id != session.user.id) {
@@ -72,9 +72,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         } else {
            state = state.copyWith(clearSupabaseUser: true, clearUserProfile: true, isLoading: false);
         }
-      } else if (event == AuthChangeEvent.initialSession) {
-        // Géré par la vérification de l'état initial ci-dessous
-        // Si une session initiale est trouvée, on la traite comme un signedIn
+      } else if (event == supabase.AuthChangeEvent.initialSession) {
          if (session != null && session.user != null) {
           state = state.copyWith(supabaseUser: session.user, isLoading: true, errorMessage: null);
           await _fetchUserProfile(session.user.id);
@@ -83,13 +81,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
       }
 
-      if (session == null && event != AuthChangeEvent.signedOut && event != AuthChangeEvent.initialSession ) {
+      if (session == null && event != supabase.AuthChangeEvent.signedOut && event != supabase.AuthChangeEvent.initialSession ) {
         state = state.copyWith(clearSupabaseUser: true, clearUserProfile: true, isLoading: false);
       }
     });
 
-    // Vérifier l'état initial au démarrage de l'app
-    // Supabase SDK peut émettre initialSession, mais il est bon d'avoir un check explicite.
     final initialSession = _supabaseClient.auth.currentSession;
     if (initialSession != null && initialSession.user != null) {
       if(state.supabaseUser == null || state.supabaseUser!.id != initialSession.user.id) {
@@ -97,13 +93,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
          await _fetchUserProfile(initialSession.user.id);
       }
     } else {
-      state = state.copyWith(isLoading: false); // Assure que isLoading est false si pas de session initiale
+      state = state.copyWith(isLoading: false);
     }
   }
 
   Future<void> _fetchUserProfile(String userId) async {
-    // Si on est déjà en train de charger ou si le profil pour cet user est déjà chargé
-    if (state.isLoading && state.userProfile?.id == userId && state.userProfile != null) return;
+    if (state.isLoading && state.userProfile?.id == userId && state.userProfile != null) {
+       if(state.isLoading) {
+         state = state.copyWith(isLoading: false);
+       }
+       return;
+    }
     
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
@@ -111,7 +111,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           .from('profiles')
           .select()
           .eq('id', userId)
-          .single(); 
+          .single();
 
       final profile = ProfileModel.fromMap(response);
       state = state.copyWith(userProfile: profile, isLoading: false, errorMessage: null);
@@ -126,7 +126,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true);
     try {
       await _supabaseClient.auth.signOut();
-      // onAuthStateChange s'occupera de mettre à jour l'état à signedOut
     } catch (e) {
       print('Erreur signOut: $e');
       state = state.copyWith(isLoading: false, errorMessage: "Erreur lors de la déconnexion: ${e.toString()}");
@@ -145,7 +144,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           .update(dataToUpdate)
           .eq('id', state.supabaseUser!.id);
       
-      await _fetchUserProfile(state.supabaseUser!.id); // Rafraîchir après mise à jour
+      await _fetchUserProfile(state.supabaseUser!.id);
       return true;
     } catch (e) {
       print('Erreur updateUserProfile: $e');
@@ -157,12 +156,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> refreshAuthStatusAndProfile() async {
     final currentSupabaseUser = _supabaseClient.auth.currentUser;
     if (currentSupabaseUser != null) {
-        state = state.copyWith(supabaseUser: currentSupabaseUser, isLoading: true, errorMessage: null);
-        await _fetchUserProfile(currentSupabaseUser.id);
+        if (state.supabaseUser?.id != currentSupabaseUser.id || state.userProfile == null) {
+           state = state.copyWith(supabaseUser: currentSupabaseUser, isLoading: true, errorMessage: null);
+           await _fetchUserProfile(currentSupabaseUser.id);
+        } else if(state.isLoading) { 
+            state = state.copyWith(isLoading: false);
+        }
     } else {
+      if (state.supabaseUser != null || state.userProfile != null) {
         state = state.copyWith(clearSupabaseUser: true, clearUserProfile: true, isLoading: false, errorMessage: null);
+      }
     }
   }
+
+  bool get isLoggedIn => state.supabaseUser != null && state.userProfile != null;
+  String? get userRole => state.userProfile?.role?.name;
 
   @override
   void dispose() {
@@ -171,7 +179,33 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  final supabaseClient = Supabase.instance.client;
+final authProvider = StateNotifierProvider<AuthNotifier, AuthStateData>((ref) {
+  final supabaseClient = supabase.Supabase.instance.client;
   return AuthNotifier(supabaseClient);
 });
+
+// Classe pont pour GoRouter refreshListenable
+class AuthStateListenable extends ChangeNotifier {
+  final AuthNotifier _authNotifier;
+  late final StreamSubscription<AuthStateData> _subscription;
+  AuthStateData? _previousState;
+
+  AuthStateListenable(this._authNotifier) {
+    _previousState = _authNotifier.state;
+    _subscription = _authNotifier.stream.listen((newState) {
+      // Nous notifions seulement si l'état de connexion ou le rôle a changé
+      // ou si l'utilisateur vient de se connecter/déconnecter (le profil peut être en cours de chargement).
+      if (newState.supabaseUser?.id != _previousState?.supabaseUser?.id || 
+          newState.userProfile?.role != _previousState?.userProfile?.role) {
+        notifyListeners();
+      }
+      _previousState = newState;
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
