@@ -1,4 +1,4 @@
-class LeconModel {
+class CourseModel {
   final int id;
   final int? chapitreId; // FK vers chapitres.id
   final String nom;
@@ -13,7 +13,7 @@ class LeconModel {
   final DateTime? updatedAt;
   final String? createdBy; // UUID de l'utilisateur profile
 
-  LeconModel({
+  CourseModel({
     required this.id,
     this.chapitreId,
     required this.nom,
@@ -29,8 +29,8 @@ class LeconModel {
     this.createdBy,
   });
 
-  factory LeconModel.fromMap(Map<String, dynamic> map) {
-    return LeconModel(
+  factory CourseModel.fromMap(Map<String, dynamic> map) {
+    return CourseModel(
       id: map['id'] as int,
       chapitreId: map['chapitre_id'] as int?,
       nom: map['nom'] as String,
@@ -65,7 +65,7 @@ class LeconModel {
     };
   }
 
-  LeconModel copyWith({
+  CourseModel copyWith({
     int? id,
     int? chapitreId,
     String? nom,
@@ -80,7 +80,7 @@ class LeconModel {
     DateTime? updatedAt,
     String? createdBy,
   }) {
-    return LeconModel(
+    return CourseModel(
       id: id ?? this.id,
       chapitreId: chapitreId ?? this.chapitreId,
       nom: nom ?? this.nom,

@@ -1,9 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:iconsax_flutter/iconsax_flutter.dart'; // Ajout de l'import pour Iconsax
+import 'package:iconsax_flutter/iconsax_flutter.dart'; 
 import '../../widgets/custom_navbar.dart';
-import '../../models/matiere_model.dart'; // Import for MatiereModel
-import '../student/cours/matiere_detail_page.dart'; // Import for MatiereDetailPage
+import '../../models/matiere_model.dart'; 
+import '../../models/chapitre_model.dart'; // Importation de ChapitreModel
+import '../student/cours/matiere_detail_page.dart';
+
+// Helper function to convert Color to Hex String
+String _colorToHex(Color color) {
+  return '#${color.value.toRadixString(16).padLeft(8, '0').substring(2)}'; // Format #RRGGBB
+}
+
+// Placeholder pour convertir IconData en String (à améliorer si nécessaire)
+String _iconDataToString(IconData iconData) {
+  // Ceci est une solution très basique. Une meilleure solution dépend de comment vous stockez/récupérez les icônes.
+  // Pour l'instant, on utilise le codePoint, mais ce n'est pas idéal pour une utilisation générale.
+  // Si vous avez un ensemble limité d'icônes, un map serait mieux.
+  if (iconData == Icons.functions) return 'functions';
+  if (iconData == Icons.science) return 'science';
+  if (iconData == Icons.science_outlined) return 'science_outlined';
+  if (iconData == Icons.menu_book) return 'menu_book';
+  if (iconData == Icons.language) return 'language';
+  if (iconData == Icons.public) return 'public';
+  if (iconData == Icons.map) return 'map';
+  if (iconData == Icons.psychology) return 'psychology';
+  if (iconData == Icons.eco) return 'eco';
+  if (iconData == Icons.computer) return 'computer';
+  if (iconData == Icons.gavel) return 'gavel';
+  if (iconData == Icons.sports_soccer) return 'sports_soccer';
+  return iconData.codePoint.toString(); // Fallback
+}
 
 class CoursPage extends StatefulWidget {
   const CoursPage({super.key});
@@ -17,7 +43,6 @@ class _CoursPageState extends State<CoursPage> {
   int _currentMatierePage = 0;
   final PageController _pageController = PageController();
 
-  // Matières exactement comme votre V1
   final List<Map<String, dynamic>> _matieres = [
     {
       'nom': 'Maths',
@@ -43,7 +68,8 @@ class _CoursPageState extends State<CoursPage> {
       'series': ['A', 'C', 'D', 'TI'],
       'chapitres': ['Atomes', 'Réactions', 'Solutions', 'Organique']
     },
-    {
+    // ... (autres matières omises pour la concision)
+     {
       'nom': 'Français',
       'icon': Icons.menu_book,
       'color': Colors.purple,
@@ -119,11 +145,9 @@ class _CoursPageState extends State<CoursPage> {
 
   void _onNavTap(int index) {
     if (index == _currentIndex) return;
-
     setState(() {
       _currentIndex = index;
     });
-
     switch (index) {
       case 1:
         context.go('/epreuves');
@@ -145,36 +169,23 @@ class _CoursPageState extends State<CoursPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Hauteur approximative de la CustomNavBar + une marge augmentée
     const double fabBottomMargin = kBottomNavigationBarHeight + 24.0; 
-
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Iconsax.notification, color: Colors.grey[700]), // Changé pour Iconsax
-          onPressed: () {
-            context.go('/notifications'); 
-          },
+          icon: Icon(Iconsax.notification, color: Colors.grey[700]),
+          onPressed: () => context.go('/notifications'),
           tooltip: 'Notifications',
         ),
-        title: const Text(
-          'Cours',
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
-        ),
+        title: const Text('Cours', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 24)),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Iconsax.setting_2, color: Colors.grey[700]), // Changé pour Iconsax
-            onPressed: () {
-              context.go('/settings');
-            },
+            icon: Icon(Iconsax.setting_2, color: Colors.grey[700]),
+            onPressed: () => context.go('/settings'),
             tooltip: 'Paramètres',
           ),
         ],
@@ -187,6 +198,7 @@ class _CoursPageState extends State<CoursPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ... (Welcome Banner omis pour la concision)
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
@@ -241,14 +253,7 @@ class _CoursPageState extends State<CoursPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'Matières disponibles',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
+                  const Text('Matières disponibles', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
                   const SizedBox(height: 16),
                   Column(
                     children: [
@@ -306,14 +311,7 @@ class _CoursPageState extends State<CoursPage> {
                     ],
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'Cours récents',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
+                  const Text('Cours récents', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
                   const SizedBox(height: 16),
                   _buildCoursRecents(),
                   const SizedBox(height: 16),
@@ -321,20 +319,15 @@ class _CoursPageState extends State<CoursPage> {
               ),
             ),
           ),
-          CustomNavBar(
-            currentIndex: _currentIndex,
-            onTap: _onNavTap,
-          ),
+          CustomNavBar(currentIndex: _currentIndex, onTap: _onNavTap),
         ],
       ),
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: fabBottomMargin), 
         child: FloatingActionButton(
-          onPressed: () {
-            context.go('/chatbot');
-          },
+          onPressed: () => context.go('/chatbot'),
           backgroundColor: Theme.of(context).primaryColor.withOpacity(0.9), 
-          child: const Icon(Iconsax.message_question, color: Colors.white), // Changé pour Iconsax cohérence
+          child: const Icon(Iconsax.message_question, color: Colors.white),
           tooltip: 'EasyBot',
         ),
       ),
@@ -343,62 +336,67 @@ class _CoursPageState extends State<CoursPage> {
   }
 
   Widget _buildMatiereCard(Map<String, dynamic> matiereMap) {
+    // final int currentMatiereId = matiereMap['id'] ?? matiereMap['nom'].toString().hashCode;
+    // List<String> chapitreNoms = List<String>.from(matiereMap['chapitres'] ?? []);
+    // List<ChapitreModel> chapitresList = [];
+    // Commenté pour l'instant car la création de ChapitreModel ici n'est pas compatible
+    // avec la définition actuelle de ChapitreModel et les données disponibles dans matiereMap.
+    // for (int i = 0; i < chapitreNoms.length; i++) {
+    //   chapitresList.add(ChapitreModel(
+    //     id: i, 
+    //     matiereId: currentMatiereId,
+    //     nom: chapitreNoms[i],
+    //     description: '', 
+          // Les champs suivants n'existent pas dans notre ChapitreModel actuel ou ont des types différents:
+          // icon: Icons.subject, 
+          // color: Colors.grey,
+          // difficulte: 'Moyen',
+          // dureeEstimeeMinutes: 0,
+          // progression: 0.0,
+          // lecons: [],
+    //     ordre: i,
+    //     createdAt: DateTime.now(),
+    //     // createdBy, niveauCode, serieCode, etc. sont manquants ou nécessitent une logique différente
+    //   ));
+    // }
+
+    // Générer un code placeholder si non fourni, car il est requis par MatiereModel
+    final String matiereNom = matiereMap['nom']?.toString() ?? 'N/A';
+    final String matiereCode = matiereNom.toLowerCase().replaceAll(' ', '_').replaceAll(RegExp(r'[^a-z0-9_]'), '');
+    final Color? mapColor = matiereMap['color'] as Color?;
+    final IconData? mapIconData = matiereMap['icon'] as IconData?;
+
+    MatiereModel matiereAsModel = MatiereModel(
+      // L'ID devrait venir de la base de données. Pour la data locale, on peut utiliser un hashCode ou un index.
+      // Idéalement, _matieres contiendrait des ID uniques.
+      id: matiereMap['id'] as int? ?? matiereNom.hashCode, 
+      nom: matiereNom,
+      code: matiereMap['code'] as String? ?? matiereCode, // Utiliser code du map si dispo, sinon générer
+      description: matiereMap['description'] as String?, // Laisser null si non fourni
+      couleur: mapColor != null ? _colorToHex(mapColor) : null, // Convertir Color en String Hex
+      icone: mapIconData != null ? _iconDataToString(mapIconData) : null, // Convertir IconData en String
+      type: matiereMap['type'] as String? ?? 'obligatoire', // Ajouter un type par défaut
+      // Les champs suivants ne sont pas dans notre MatiereModel actuel et sont retirés :
+      // niveaux: List<String>.from(matiereMap['niveaux'] ?? []),
+      // series: List<String>.from(matiereMap['series'] ?? []),
+      // chapitres: chapitresList, 
+      // createdAt: DateTime.now(), 
+      // updatedAt: DateTime.now(), 
+    );
+
     return ConstrainedBox(
-      constraints: const BoxConstraints(
-        minHeight: 150,
-        maxHeight: 150,
-      ),
+      constraints: const BoxConstraints(minHeight: 150, maxHeight: 150),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              spreadRadius: 2,
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.2), spreadRadius: 2, blurRadius: 8, offset: const Offset(0, 4))],
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () {
-              final int currentMatiereId = matiereMap['id'] ?? matiereMap['nom'].toString().hashCode;
-              List<String> chapitreNoms = List<String>.from(matiereMap['chapitres'] ?? []);
-              List<ChapitreModel> chapitresList = [];
-              for (int i = 0; i < chapitreNoms.length; i++) {
-                chapitresList.add(ChapitreModel(
-                  id: i, 
-                  matiereId: currentMatiereId,
-                  nom: chapitreNoms[i],
-                  description: '', 
-                  icon: Icons.subject, 
-                  color: Colors.grey,
-                  difficulte: 'Moyen',
-                  dureeEstimeeMinutes: 0,
-                  progression: 0.0,
-                  lecons: [],
-                  createdAt: DateTime.now(),
-                  updatedAt: DateTime.now(),
-                ));
-              }
-
-              MatiereModel matiereAsModel = MatiereModel(
-                id: currentMatiereId,
-                nom: matiereMap['nom']?.toString() ?? 'N/A',
-                description: matiereMap['description']?.toString() ?? '',
-                icon: matiereMap['icon'] as IconData? ?? Icons.book,
-                color: matiereMap['color'] as Color? ?? Colors.blue,
-                niveaux: List<String>.from(matiereMap['niveaux'] ?? []),
-                series: List<String>.from(matiereMap['series'] ?? []),
-                chapitres: chapitresList,
-                createdAt: DateTime.now(), 
-                updatedAt: DateTime.now(), 
-              );
-
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -427,11 +425,7 @@ class _CoursPageState extends State<CoursPage> {
                   const SizedBox(height: 8),
                   Text(
                     matiereMap['nom']?.toString() ?? 'N/A',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87),
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -439,10 +433,7 @@ class _CoursPageState extends State<CoursPage> {
                   const SizedBox(height: 4),
                   Text(
                     '${(matiereMap['chapitres'] as List<dynamic>? ?? []).length} chapitres',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
                 ],
               ),
@@ -454,6 +445,7 @@ class _CoursPageState extends State<CoursPage> {
   }
 
   Widget _buildCoursRecents() {
+    // ... (Logique de _buildCoursRecents inchangée pour l'instant)
     final coursRecents = [
       {'titre': 'Algèbre - Équations du 2nd degré', 'matiere': 'Mathématiques', 'duree': '45 min'},
       {'titre': 'Mécanique - Les forces', 'matiere': 'Physique', 'duree': '30 min'},

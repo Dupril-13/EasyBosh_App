@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // Enum pour représenter les différentes sections du dashboard
 enum AdminDashboardSection {
   overview,
-  userManagement,
+  userManagement, // Comprend maintenant admin et teachers
   activityLogs,
   profileManagement,
 }
@@ -24,7 +24,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Widget _buildSidebar(BuildContext context) {
     return Container(
       width: 260, // Largeur de la sidebar
-      color: const Color(0xFF1976D2), // Changé pour Colors.blue[700]
+      color: const Color(0xFF1976D2), // Colors.blue[700]
       padding: const EdgeInsets.symmetric(vertical: 20.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -40,36 +40,63 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               ),
             ),
           ),
-          Divider(color: const Color(0xFF42A5F5), height: 1), // Changé pour Colors.blue[400]
+          Divider(color: const Color(0xFF42A5F5), height: 1), // Colors.blue[400]
           _buildSidebarItem(
             context,
             icon: Icons.dashboard_outlined,
             title: 'Vue d\'ensemble',
             section: AdminDashboardSection.overview,
+            onTap: () {
+              setState(() {
+                _selectedSection = AdminDashboardSection.overview;
+              });
+              // TODO: Naviguer vers la sous-route correspondante si chaque section est une route
+              // context.go('/admin/dashboard/overview');
+            }
           ),
           _buildSidebarItem(
             context,
-            icon: Icons.group_outlined, // Icône pour la gestion des utilisateurs
-            title: 'Gestion Des Utilisateurs',
+            icon: Icons.group_outlined, 
+            title: 'Gestion Utilisateurs', // Regroupe Admin et Enseignants
             section: AdminDashboardSection.userManagement,
+            onTap: () {
+              setState(() {
+                _selectedSection = AdminDashboardSection.userManagement;
+              });
+              // TODO: Afficher ManageAdminsPage ou ManageTeachersPage dans _buildContentArea
+              // ou naviguer vers des routes spécifiques comme '/admin/manage-admins'
+              // context.go('/admin/manage-teachers'); // ou '/admin/manage-admins'
+            }
           ),
           _buildSidebarItem(
             context,
-            icon: Icons.history_outlined, // Icône pour les logs d'activité
+            icon: Icons.history_outlined, 
             title: 'Logs d\'activité',
             section: AdminDashboardSection.activityLogs,
+            onTap: () {
+               setState(() {
+                _selectedSection = AdminDashboardSection.activityLogs;
+              });
+              // context.go('/admin/activity-logs');
+            }
           ),
           _buildSidebarItem(
             context,
-            icon: Icons.manage_accounts_outlined, // Icône pour la gestion de profil
+            icon: Icons.manage_accounts_outlined, 
             title: 'Gestion profil',
             section: AdminDashboardSection.profileManagement,
+            onTap: () {
+               setState(() {
+                _selectedSection = AdminDashboardSection.profileManagement;
+              });
+              // context.go('/admin/profile');
+            }
           ),
-          const Spacer(), // Pour pousser les derniers éléments en bas
-          Divider(color: const Color(0xFF42A5F5), height: 1), // Changé pour Colors.blue[400]
+          const Spacer(), 
+          Divider(color: const Color(0xFF42A5F5), height: 1), 
           ListTile(
-            leading: Icon(Icons.logout, color: Colors.white), // Icône déconnexion en blanc
-            title: Text('Déconnexion', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), // Texte en blanc
+            leading: Icon(Icons.logout, color: Colors.white), 
+            title: Text('Déconnexion', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             onTap: () async {
               try {
                 await Supabase.instance.client.auth.signOut();
@@ -105,6 +132,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     required IconData icon,
     required String title,
     required AdminDashboardSection section,
+    VoidCallback? onTap,
   }) {
     final bool isSelected = _selectedSection == section;
     final Color itemColor = isSelected ? Colors.white : Colors.blue[100]!;
@@ -115,11 +143,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       child: ListTile(
         leading: Icon(icon, color: itemColor),
         title: Text(title, style: TextStyle(color: itemColor, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-        onTap: () {
-          setState(() {
-            _selectedSection = section;
-          });
-        },
+        onTap: onTap,
         selected: isSelected,
         hoverColor: Colors.white.withOpacity(0.1),
       ),
@@ -131,6 +155,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     String title;
     Widget content;
 
+    // TODO: Importer les vraies pages SANS leur Scaffold et les utiliser ici.
+    // Exemple: import '../manage_teachers_page.dart';
+    // Exemple: import '../manage_admins_page.dart';
+
     switch (_selectedSection) {
       case AdminDashboardSection.overview:
         title = 'Vue d\'ensemble';
@@ -138,14 +166,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         break;
       case AdminDashboardSection.userManagement:
         title = 'Gestion Des Utilisateurs';
+        // TODO: Mettre ici ManageTeachersPage() ou ManageAdminsPage() SANS leur Scaffold
+        // Vous aurez besoin d'une logique pour choisir entre les deux, ou des sous-sections.
         content = const Center(child: Text('Contenu de la Gestion Des Utilisateurs (Admins, Enseignants).'));
         break;
       case AdminDashboardSection.activityLogs:
         title = 'Logs d\'activité';
+        // TODO: Mettre ici ActivityLogsPage() SANS son Scaffold
         content = const Center(child: Text('Contenu des Logs d\'activité (Enseignants/Admins).'));
         break;
       case AdminDashboardSection.profileManagement:
         title = 'Gestion de son profil';
+        // TODO: Mettre ici AdminProfilePage() SANS son Scaffold
         content = const Center(child: Text('Contenu de la Gestion de son profil Admin.'));
         break;
       default:

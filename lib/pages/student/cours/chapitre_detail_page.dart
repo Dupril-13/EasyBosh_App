@@ -1,11 +1,32 @@
-// lib/pages/student/chapitre_detail_page.dart
 import 'package:flutter/material.dart';
 import 'package:easybosh_v2/models/matiere_model.dart';
+import '../../../models/chapitre_model.dart'; // Assumed to be our new ChapitreModel
+import '../../../models/lecon_model.dart';   // Import for our new LeconModel
 import '../../student/cours/lecon_detail_page.dart';
 
+// Helper to convert hex string to Color (if needed for ChapitreModel later)
+Color _hexToColorChapitre(String? hexString, {Color defaultColor = Colors.teal}) {
+  if (hexString == null) return defaultColor;
+  final buffer = StringBuffer();
+  if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
+  buffer.write(hexString.replaceFirst('#', ''));
+  try {
+    return Color(int.parse(buffer.toString(), radix: 16));
+  } catch (e) {
+    return defaultColor;
+  }
+}
+
+// Placeholder to convert string to IconData (if needed for ChapitreModel later)
+IconData _stringToIconDataChapitre(String? iconName, {IconData defaultIcon = Icons.class_outlined}) { // Corrigé ici
+  if (iconName == null) return defaultIcon;
+  // Add mapping if ChapitreModel gets an icon string
+  return defaultIcon;
+}
+
 class ChapitreDetailPage extends StatefulWidget {
-  final MatiereModel matiere;
-  final ChapitreModel chapitre;
+  final MatiereModel matiere; // This is our new MatiereModel
+  final ChapitreModel chapitre; // This is our new ChapitreModel
 
   const ChapitreDetailPage({
     super.key,
@@ -44,19 +65,12 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // En-tête du chapitre
             _buildChapitreHeader(),
             const SizedBox(height: 24),
-
-            // Statistiques du chapitre
             _buildStatsSection(),
             const SizedBox(height: 24),
-
-            // Breadcrumb
             _buildBreadcrumb(),
             const SizedBox(height: 16),
-
-            // Liste des leçons
             const Text(
               'Leçons',
               style: TextStyle(
@@ -66,8 +80,6 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Liste des leçons (design V1)
             _buildLeconsList(),
           ],
         ),
@@ -76,12 +88,16 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
   }
 
   Widget _buildChapitreHeader() {
+    // ChapitreModel (new) doesn't have color, icon, difficulte, progression directly
+    final Color placeholderColor = Colors.deepPurple; // Placeholder
+    final IconData placeholderIcon = Icons.library_books; // Placeholder
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [widget.chapitre.color, widget.chapitre.color.withOpacity(0.7)],
+          colors: [placeholderColor, placeholderColor.withOpacity(0.7)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -99,7 +115,7 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  widget.chapitre.icon,
+                  placeholderIcon,
                   size: 32,
                   color: Colors.white,
                 ),
@@ -119,7 +135,7 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      widget.matiere.nom,
+                      widget.matiere.nom, // MatiereModel's nom
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: 16,
@@ -128,15 +144,16 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                   ],
                 ),
               ),
+              // Difficulte placeholder
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  widget.chapitre.difficulte,
-                  style: const TextStyle(
+                child: const Text(
+                  'N/A', // Placeholder for difficulte
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -147,16 +164,17 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            widget.chapitre.description,
+            widget.chapitre.description ?? 'Aucune description pour ce chapitre.',
             style: TextStyle(
               color: Colors.white.withOpacity(0.9),
               fontSize: 16,
               height: 1.4,
             ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 16),
-
-          // Barre de progression dans l'en-tête
+          // Progression placeholder
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -170,9 +188,9 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                       fontSize: 14,
                     ),
                   ),
-                  Text(
-                    '${(widget.chapitre.progression * 100).toInt()}%',
-                    style: const TextStyle(
+                  const Text(
+                    '0%', // Placeholder for progression
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -184,7 +202,7 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
-                  value: widget.chapitre.progression,
+                  value: 0.0, // Placeholder for progression
                   backgroundColor: Colors.white.withOpacity(0.3),
                   valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                   minHeight: 6,
@@ -198,18 +216,14 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
   }
 
   Widget _buildStatsSection() {
-    final leconsCompletes = widget.chapitre.lecons.where((l) => l.estComplete).length;
-    final tempsTotalMinutes = widget.chapitre.lecons.fold(0, (sum, l) => sum + l.dureeEstimeeMinutes);
-    final heures = tempsTotalMinutes ~/ 60;
-    final minutes = tempsTotalMinutes % 60;
-    final tempsTotal = heures > 0 ? '${heures}h${minutes}min' : '${minutes}min';
-
+    // widget.chapitre.lecons (V1 structure) and widget.chapitre.nombreLecons are not directly available
+    // Using placeholders
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             'Leçons',
-            '${widget.chapitre.nombreLecons}',
+            '0', // Placeholder
             Icons.article_outlined,
             Colors.blue,
           ),
@@ -218,7 +232,7 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
         Expanded(
           child: _buildStatCard(
             'Terminées',
-            '$leconsCompletes',
+            '0', // Placeholder
             Icons.check_circle_outline,
             Colors.green,
           ),
@@ -227,7 +241,7 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
         Expanded(
           child: _buildStatCard(
             'Durée',
-            tempsTotal,
+            'N/A', // Placeholder
             Icons.schedule,
             Colors.orange,
           ),
@@ -289,7 +303,7 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
           Icon(Icons.home, size: 16, color: Colors.grey[600]),
           const SizedBox(width: 8),
           Text(
-            widget.matiere.nom,
+            widget.matiere.nom, // From MatiereModel
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],
@@ -297,7 +311,7 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
           ),
           Icon(Icons.chevron_right, size: 16, color: Colors.grey[600]),
           Text(
-            widget.chapitre.nom,
+            widget.chapitre.nom, // From ChapitreModel
             style: const TextStyle(
               fontSize: 14,
               color: Colors.blue,
@@ -310,25 +324,49 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
   }
 
   Widget _buildLeconsList() {
-    // Tri des leçons par ordre
-    final leconsTriees = List<LeconModel>.from(widget.chapitre.lecons);
-    leconsTriees.sort((a, b) => a.ordre.compareTo(b.ordre));
+    // The field `widget.chapitre.lecons` is from the V1 mock data structure for ChapitreModel.
+    // Our new ChapitreModel (from Supabase) does not have a `lecons` field directly.
+    // This list would need to be fetched separately (e.g., using leconProvider.fetchLeconsByChapter).
+    // For now, to ensure compilation and avoid runtime errors with mismatched LeconModel types,
+    // we'll use an empty list for `leconsTriees`.
+    final List<LeconModel> leconsTriees = []; // Empty list as placeholder
+
+    if (leconsTriees.isEmpty) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 20.0),
+            child: Text('Aucune leçon disponible pour ce chapitre pour le moment.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 16),),
+          )
+        );
+    }
 
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: leconsTriees.length,
       itemBuilder: (context, index) {
-        final lecon = leconsTriees[index];
-        final estPrecedenteComplete = index == 0 || leconsTriees[index - 1].estComplete;
-        final estAccessible = estPrecedenteComplete || lecon.estComplete;
-
+        final lecon = leconsTriees[index]; // This will be our new LeconModel
+        // The logic for estPrecedenteComplete and estAccessible needs to be re-evaluated
+        // as our new LeconModel doesn't have 'estComplete' directly.
+        // Using true as placeholder for accessibility for now.
+        final bool estAccessible = true; 
         return _buildLeconCard(lecon, index + 1, estAccessible);
       },
     );
   }
 
+  // This card needs to be adapted to our new LeconModel
   Widget _buildLeconCard(LeconModel lecon, int numero, bool estAccessible) {
+    // Our new LeconModel has: nom, description, type, dureeEstimee (int?), ordre, etc.
+    // It does NOT have: estComplete, typeColor, typeIcon, titre (use nom), dureeEstimeeTexte.
+    final Color placeholderLeconColor = Colors.orange; // Placeholder
+    final IconData placeholderLeconIcon = Icons.play_circle_outline; // Placeholder
+    final String dureeTexte = lecon.dureeEstimee != null ? '${lecon.dureeEstimee} min' : 'N/A';
+    // 'estComplete' is not in our LeconModel. Using false as placeholder.
+    final bool estCompletePlaceholder = false; 
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -348,14 +386,13 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: estAccessible ? () {
-            // Navigation vers la page de la leçon
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => LeconDetailPage(
-                  matiere: widget.matiere,
-                  chapitre: widget.chapitre,
-                  lecon: lecon,
+                  matiere: widget.matiere, // Corrigé ici
+                  chapitre: widget.chapitre, // Pass our ChapitreModel
+                  lecon: lecon, // Pass our LeconModel
                 ),
               ),
             );
@@ -366,34 +403,31 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
-                  // Numéro de la leçon
                   Container(
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: lecon.estComplete
+                      color: estCompletePlaceholder
                           ? Colors.green
                           : estAccessible
-                          ? lecon.typeColor.withOpacity(0.1)
+                          ? placeholderLeconColor.withOpacity(0.1)
                           : Colors.grey[300],
                       shape: BoxShape.circle,
                     ),
                     child: Center(
-                      child: lecon.estComplete
+                      child: estCompletePlaceholder
                           ? const Icon(Icons.check, color: Colors.white, size: 20)
                           : Text(
                         '$numero',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: estAccessible ? lecon.typeColor : Colors.grey[600],
+                          color: estAccessible ? placeholderLeconColor : Colors.grey[600],
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 16),
-
-                  // Contenu de la leçon
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,24 +435,24 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                         Row(
                           children: [
                             Icon(
-                              lecon.typeIcon,
+                              placeholderLeconIcon, // Placeholder
                               size: 18,
-                              color: estAccessible ? lecon.typeColor : Colors.grey[600],
+                              color: estAccessible ? placeholderLeconColor : Colors.grey[600],
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              lecon.type.toUpperCase(),
+                              lecon.type.toUpperCase(), // From LeconModel
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
-                                color: estAccessible ? lecon.typeColor : Colors.grey[600],
+                                color: estAccessible ? placeholderLeconColor : Colors.grey[600],
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          lecon.titre,
+                          lecon.nom, // From LeconModel (was titre)
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -427,7 +461,7 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          lecon.description,
+                          lecon.description ?? 'Pas de description.', // From LeconModel
                           style: TextStyle(
                             fontSize: 14,
                             color: estAccessible ? Colors.grey[600] : Colors.grey[500],
@@ -445,13 +479,13 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              lecon.dureeEstimeeTexte,
+                              dureeTexte, // Calculated from lecon.dureeEstimee
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[500],
                               ),
                             ),
-                            if (lecon.estComplete) ...[
+                            if (estCompletePlaceholder) ...[
                               const SizedBox(width: 16),
                               Icon(
                                 Icons.check_circle,
@@ -473,8 +507,6 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                       ],
                     ),
                   ),
-
-                  // Indicateur d'accès
                   Icon(
                     estAccessible
                         ? Icons.arrow_forward_ios

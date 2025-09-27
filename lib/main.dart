@@ -1,127 +1,64 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'core/config/app_config.dart';
-import 'core/router/app_router.dart';
-import 'core/theme/app_theme.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // Pour charger les variables d'environnement
+
+import 'package:easybosh_v2/core/router/app_router.dart'; 
+import 'package:easybosh_v2/core/theme/app_theme.dart'; // Décommenté et importé
+
+// Provider pour le client Supabase, accessible globalement via ref.watch(supabaseClientProvider)
+final supabaseClientProvider = Provider<SupabaseClient>((ref) {
+  return Supabase.instance.client;
+});
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Charger les variables d'environnement depuis le fichier .env
   try {
-    // Charger les variables d'environnement
     await dotenv.load(fileName: ".env");
-
-    // Initialiser Supabase
-    await Supabase.initialize(
-      url: AppConfig.supabaseUrl,
-      anonKey: AppConfig.supabaseAnonKey,
-    );
-
-    runApp(
-      const ProviderScope(
-        child: EasyBoshApp(),
-      ),
-    );
   } catch (e) {
-    // Version d'erreur si problème de configuration
-    runApp(
-      MaterialApp(
-        home: ConfigErrorPage(error: e.toString()),
-        debugShowCheckedModeBanner: false,
-      ),
-    );
+    print("Erreur lors du chargement du fichier .env: $e"); // Gérer l'erreur si le fichier n'est pas trouvé
+    // Vous pourriez vouloir arrêter l'app ou utiliser des valeurs par défaut ici
   }
+
+  final supabaseUrl = dotenv.env['SUPABASE_URL'];
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+
+  if (supabaseUrl == null || supabaseAnonKey == null) {
+    print("ERREUR: SUPABASE_URL ou SUPABASE_ANON_KEY ne sont pas définies dans le fichier .env");
+    // Arrêter l'application ou gérer cette erreur de configuration critique
+    return; 
+  }
+
+  // Initialiser Supabase avec les variables d'environnement
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
+    // authFlowType: AuthFlowType.pkce, // Optionnel, pour le flux PKCE si vous l'utilisez
+  );
+
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
-class EasyBoshApp extends ConsumerWidget {
-  const EasyBoshApp({super.key});
+class MyApp extends ConsumerWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(appRouterProvider);
+    final goRouter = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
+      title: 'Easybosh V2',
+      theme: AppTheme.lightTheme, // Appliqué le thème clair
+      darkTheme: AppTheme.darkTheme, // Thème sombre défini (au cas où, mais non utilisé avec ThemeMode.light)
+      themeMode: ThemeMode.light, // Forcer le thème clair pour toute l'application
+      routerConfig: goRouter,
       debugShowCheckedModeBanner: false,
-      title: AppConfig.appName,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.light,
-      routerConfig: router,
-    );
-  }
-}
-
-/// Page d'erreur de configuration
-class ConfigErrorPage extends StatelessWidget {
-  final String error;
-
-  const ConfigErrorPage({super.key, required this.error});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.red.shade50,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 20),
-              const Text(
-                'Erreur de configuration',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                error,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.red,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Column(
-                  children: [
-                    Text(
-                      'Solutions possibles :',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      '• Vérifiez que le fichier .env existe\n'
-                          '• Ajoutez vos identifiants Supabase\n'
-                          '• Redémarrez l\'application',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.orange,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

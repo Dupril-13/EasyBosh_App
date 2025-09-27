@@ -1,7 +1,35 @@
-// lib/pages/student/matiere_detail_page.dart
 import 'package:flutter/material.dart';
 import 'package:easybosh_v2/models/matiere_model.dart';
+import '../../../models/chapitre_model.dart'; // Ajouté
+// import '../../../models/lecon_model.dart'; // Pas directement utilisé ici, mais pour info
 import '../cours/chapitre_detail_page.dart';
+
+// Helper to convert hex string to Color
+Color _hexToColor(String? hexString, {Color defaultColor = Colors.grey}) {
+  if (hexString == null) return defaultColor;
+  final buffer = StringBuffer();
+  if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
+  buffer.write(hexString.replaceFirst('#', ''));
+  try {
+    return Color(int.parse(buffer.toString(), radix: 16));
+  } catch (e) {
+    return defaultColor;
+  }
+}
+
+// Placeholder to convert string to IconData (très basique)
+IconData _stringToIconData(String? iconName, {IconData defaultIcon = Icons.help_outline}) {
+  if (iconName == null) return defaultIcon;
+  // Ceci est un placeholder. Une vraie implémentation nécessiterait un map ou une logique plus robuste.
+  // Exemples basés sur les noms utilisés dans cours_page.dart
+  if (iconName == 'functions') return Icons.functions;
+  if (iconName == 'science') return Icons.science;
+  if (iconName == 'science_outlined') return Icons.science_outlined;
+  if (iconName == 'menu_book') return Icons.menu_book;
+  if (iconName == 'language') return Icons.language;
+  // ... ajouter d'autres icônes si nécessaire
+  return defaultIcon;
+}
 
 class MatiereDetailPage extends StatefulWidget {
   final MatiereModel matiere;
@@ -43,15 +71,10 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // En-tête de la matière (style identique V1)
             _buildMatiereHeader(),
             const SizedBox(height: 24),
-
-            // Statistiques rapides
             _buildStatsSection(),
             const SizedBox(height: 24),
-
-            // Liste des chapitres
             const Text(
               'Chapitres',
               style: TextStyle(
@@ -61,8 +84,6 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Liste des chapitres (design V1)
             _buildChapitresGrid(),
           ],
         ),
@@ -71,12 +92,15 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
   }
 
   Widget _buildMatiereHeader() {
+    final Color matiereColor = _hexToColor(widget.matiere.couleur, defaultColor: Colors.blueAccent);
+    final IconData matiereIcon = _stringToIconData(widget.matiere.icone, defaultIcon: Icons.school);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [widget.matiere.color, widget.matiere.color.withOpacity(0.7)],
+          colors: [matiereColor, matiereColor.withOpacity(0.7)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -97,28 +121,32 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
+                // nombreChapitres, niveaux ne sont pas dans MatiereModel
+                // Utilisation de placeholders pour l'instant
                 Text(
-                  '${widget.matiere.nombreChapitres} chapitres disponibles',
+                  '0 chapitres disponibles', // Placeholder
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 14,
                   ),
                 ),
                 const SizedBox(height: 8),
+                // Text(
+                //   'Niveau : N/A', // Placeholder
+                //   style: TextStyle(
+                //     color: Colors.white.withOpacity(0.9),
+                //     fontSize: 14,
+                //   ),
+                // ),
+                // const SizedBox(height: 8),
                 Text(
-                  'Niveau : ${widget.matiere.niveaux.join(', ')}',
+                  widget.matiere.description ?? 'Aucune description pour cette matière.',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 14,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.matiere.description,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -131,7 +159,7 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              widget.matiere.icon,
+              matiereIcon,
               size: 40,
               color: Colors.white,
             ),
@@ -142,12 +170,14 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
   }
 
   Widget _buildStatsSection() {
+    // nombreChapitres, nombreLecons, progressionMoyenne ne sont pas dans MatiereModel
+    // Utilisation de placeholders
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             'Chapitres',
-            '${widget.matiere.nombreChapitres}',
+            '0', // Placeholder
             Icons.book_outlined,
             Colors.blue,
           ),
@@ -156,7 +186,7 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
         Expanded(
           child: _buildStatCard(
             'Leçons',
-            '${widget.matiere.nombreLecons}',
+            '0', // Placeholder
             Icons.article_outlined,
             Colors.green,
           ),
@@ -165,7 +195,7 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
         Expanded(
           child: _buildStatCard(
             'Avancée',
-            '${(widget.matiere.progressionMoyenne * 100).toInt()}%',
+            '0%', // Placeholder
             Icons.trending_up,
             Colors.orange,
           ),
@@ -215,18 +245,40 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
   }
 
   Widget _buildChapitresGrid() {
+    // widget.matiere.chapitres n'existe pas dans le MatiereModel actuel.
+    // Pour l'instant, on affiche une liste vide ou un message.
+    // Une vraie implémentation nécessiterait de fetcher les chapitres pour cette matière.
+    final List<ChapitreModel> chapitres = []; // Placeholder: liste vide
+
+    if (chapitres.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 20.0),
+          child: Text('Aucun chapitre disponible pour cette matière pour le moment.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+          ),
+        ),
+      );
+    }
+
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: widget.matiere.chapitres.length,
+      itemCount: chapitres.length,
       itemBuilder: (context, index) {
-        final chapitre = widget.matiere.chapitres[index];
+        final chapitre = chapitres[index];
         return _buildChapitreCard(chapitre);
       },
     );
   }
 
   Widget _buildChapitreCard(ChapitreModel chapitre) {
+    // Les champs comme color, icon, difficulte, progression, etc. n'existent pas dans notre ChapitreModel actuel.
+    // Nous utilisons des placeholders ou des valeurs par défaut.
+    final Color chapitrePlaceholderColor = Colors.teal;
+    final IconData chapitrePlaceholderIcon = Icons.class_outlined; // Corrigé ici
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -246,13 +298,12 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
-            // Navigation vers la page détail du chapitre
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => ChapitreDetailPage(
-                  matiere: widget.matiere,
-                  chapitre: chapitre,
+                  matiere: widget.matiere, // Corrigé ici
+                  chapitre: chapitre, 
                 ),
               ),
             );
@@ -267,12 +318,12 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: chapitre.color.withOpacity(0.1),
+                        color: chapitrePlaceholderColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
-                        chapitre.icon,
-                        color: chapitre.color,
+                        chapitrePlaceholderIcon,
+                        color: chapitrePlaceholderColor,
                         size: 24,
                       ),
                     ),
@@ -291,89 +342,90 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            chapitre.description,
+                            chapitre.description ?? 'Pas de description pour ce chapitre.',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[600],
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: chapitre.difficulteColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        chapitre.difficulte,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: chapitre.difficulteColor,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
+                    // Section "Difficulté" commentée car non présente dans ChapitreModel
+                    // Container(
+                    //   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    //   decoration: BoxDecoration(
+                    //     color: chapitrePlaceholderColor.withOpacity(0.1), // Placeholder
+                    //     borderRadius: BorderRadius.circular(8),
+                    //   ),
+                    //   child: Text(
+                    //     'Moyen', // Placeholder
+                    //     style: TextStyle(
+                    //       fontSize: 12,
+                    //       color: chapitrePlaceholderColor, // Placeholder
+                    //       fontWeight: FontWeight.w500,
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                // Informations détaillées
-                Row(
-                  children: [
-                    _buildInfoChip(
-                      Icons.article_outlined,
-                      '${chapitre.nombreLecons} leçons',
-                      Colors.blue,
-                    ),
-                    const SizedBox(width: 12),
-                    _buildInfoChip(
-                      Icons.schedule,
-                      chapitre.dureeEstimeeTexte,
-                      Colors.green,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Barre de progression (style V1)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Progression',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        Text(
-                          '${(chapitre.progression * 100).toInt()}%',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: chapitre.color,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: chapitre.progression,
-                        backgroundColor: Colors.grey[300],
-                        valueColor: AlwaysStoppedAnimation<Color>(chapitre.color),
-                        minHeight: 6,
-                      ),
-                    ),
-                  ],
-                ),
+                // Informations détaillées (nombreLecons, dureeEstimeeTexte) commentées
+                // Row(
+                //   children: [
+                //     _buildInfoChip(
+                //       Icons.article_outlined,
+                //       '0 leçons', // Placeholder
+                //       Colors.blue,
+                //     ),
+                //     const SizedBox(width: 12),
+                //     _buildInfoChip(
+                //       Icons.schedule,
+                //       'N/A', // Placeholder
+                //       Colors.green,
+                //     ),
+                //   ],
+                // ),
+                // const SizedBox(height: 16),
+                // Barre de progression commentée
+                // Column(
+                //   crossAxisAlignment: CrossAxisAlignment.start,
+                //   children: [
+                //     Row(
+                //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                //       children: [
+                //         Text(
+                //           'Progression',
+                //           style: TextStyle(
+                //             fontSize: 14,
+                //             fontWeight: FontWeight.w500,
+                //             color: Colors.grey[700],
+                //           ),
+                //         ),
+                //         Text(
+                //           '0%', // Placeholder
+                //           style: TextStyle(
+                //             fontSize: 14,
+                //             fontWeight: FontWeight.bold,
+                //             color: chapitrePlaceholderColor, // Placeholder
+                //           ),
+                //         ),
+                //       ],
+                //     ),
+                //     const SizedBox(height: 8),
+                //     ClipRRect(
+                //       borderRadius: BorderRadius.circular(4),
+                //       child: LinearProgressIndicator(
+                //         value: 0.0, // Placeholder
+                //         backgroundColor: Colors.grey[300],
+                //         valueColor: AlwaysStoppedAnimation<Color>(chapitrePlaceholderColor), // Placeholder
+                //         minHeight: 6,
+                //       ),
+                //     ),
+                //   ],
+                // ),
               ],
             ),
           ),
@@ -382,28 +434,29 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
     );
   }
 
-  Widget _buildInfoChip(IconData icone, String texte, Color couleur) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: couleur.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icone, size: 14, color: couleur),
-          const SizedBox(width: 4),
-          Text(
-            texte,
-            style: TextStyle(
-              fontSize: 12,
-              color: couleur,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // _buildInfoChip est commenté car les sections l'utilisant sont commentées
+  // Widget _buildInfoChip(IconData icone, String texte, Color couleur) {
+  //   return Container(
+  //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  //     decoration: BoxDecoration(
+  //       color: couleur.withOpacity(0.1),
+  //       borderRadius: BorderRadius.circular(8),
+  //     ),
+  //     child: Row(
+  //       mainAxisSize: MainAxisSize.min,
+  //       children: [
+  //         Icon(icone, size: 14, color: couleur),
+  //         const SizedBox(width: 4),
+  //         Text(
+  //           texte,
+  //           style: TextStyle(
+  //             fontSize: 12,
+  //             color: couleur,
+  //             fontWeight: FontWeight.w500,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }
