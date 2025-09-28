@@ -31,10 +31,14 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   TeacherDashboardSection _selectedSection = TeacherDashboardSection.overview;
   
   int? _currentChapitreIdForLessons; 
+  
+  // Filtres actifs pour la gestion des chapitres, mémorisés dans TeacherDashboardPage
+  String? _currentNiveauCodeForFilter;
+  String? _currentSerieCodeForFilter;
   int? _currentMatiereIdForChapitresFilter;
 
-  int? _editingChapitreId;
-  int? _editingLeconId;
+  int? _editingChapitreId; 
+  int? _editingLeconId;    
 
   void _handleNavigation(TeacherDashboardSection section) {
     setState(() {
@@ -53,6 +57,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     setState(() {
       _selectedSection = TeacherDashboardSection.manageLessonsForChapter;
       _currentChapitreIdForLessons = chapitre.id;
+      // Mémoriser le contexte du chapitre si on veut pré-remplir les filtres en revenant
+      // _currentNiveauCodeForFilter = chapitre.niveauCode;
+      // _currentSerieCodeForFilter = chapitre.serieCode;
+      // _currentMatiereIdForChapitresFilter = chapitre.matiereId;
       _editingChapitreId = null; 
       _editingLeconId = null;
     });
@@ -67,6 +75,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   }
 
   void _navigateToAddChapitre() {
+    if (_currentNiveauCodeForFilter == null || _currentSerieCodeForFilter == null || _currentMatiereIdForChapitresFilter == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: const Text(r"Veuillez sélectionner un niveau, une série et une matière avant d''''''''ajouter un chapitre."), backgroundColor: Colors.orange)
+        );
+        return;
+    }
     setState(() {
       _selectedSection = TeacherDashboardSection.editChapter;
       _editingChapitreId = null; 
@@ -76,7 +90,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   void _navigateToEditChapitre(ChapitreModel chapitre) {
     setState(() {
       _selectedSection = TeacherDashboardSection.editChapter;
-      _editingChapitreId = chapitre.id;
+      _editingChapitreId = chapitre.id; 
+      // Mettre à jour les filtres actuels avec ceux du chapitre édité
+      // pour que ManageChapitresPage soit correctement filtré si l'utilisateur annule.
+      _currentNiveauCodeForFilter = chapitre.niveauCode;
+      _currentSerieCodeForFilter = chapitre.serieCode;
+      _currentMatiereIdForChapitresFilter = chapitre.matiereId;
     });
   }
 
@@ -103,6 +122,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       } else {
         _selectedSection = TeacherDashboardSection.manageChapters;
       }
+      // Les filtres (_currentNiveauCodeForFilter, etc.) sont conservés.
+      // Si l'ajout/modif d'un chapitre a changé son contexte (peu probable avec UI actuelle),
+      // les filtres pourraient ne plus correspondre. C'est géré par ManageChapitresPage
+      // qui revalidera son _selectedMatiereId au besoin.
       _editingChapitreId = null;
       _editingLeconId = null;
     });
@@ -116,8 +139,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
             child: Text(
               'Easybosh Enseignant',
               style: TextStyle(
@@ -127,7 +150,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               ),
             ),
           ),
-          Divider(color: const Color(0xFF42A5F5), height: 1),
+          const Divider(color: Color(0xFF42A5F5), height: 1),
           _buildSidebarItem(
             context,
             icon: Icons.dashboard_outlined,
@@ -167,10 +190,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             onTap: () => _handleNavigation(TeacherDashboardSection.profileManagement)
           ),
           const Spacer(),
-          Divider(color: const Color(0xFF42A5F5), height: 1),
+          const Divider(color: Color(0xFF42A5F5), height: 1),
           ListTile(
-            leading: Icon(Icons.logout, color: Colors.white),
-            title: Text('Déconnexion', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            leading: const Icon(Icons.logout, color: Colors.white),
+            title: const Text('Déconnexion', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             onTap: () async {
               try {
                 await Supabase.instance.client.auth.signOut();
@@ -230,9 +253,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         title = 'Gestion des Chapitres';
         content = ManageChapitresPage(
           onChapitreSelected: _navigateToChapitreLessons,
-          initialSelectedMatiereId: _currentMatiereIdForChapitresFilter, 
-          onMatiereFilterChanged: (newMatiereId) {
+          initialNiveauCode: _currentNiveauCodeForFilter,     // Passer le filtre mémorisé
+          initialSerieCode: _currentSerieCodeForFilter,       // Passer le filtre mémorisé
+          initialMatiereId: _currentMatiereIdForChapitresFilter, // Passer le filtre mémorisé
+          onFiltersChanged: (newNiveauCode, newSerieCode, newMatiereId) {
             setState(() {
+              _currentNiveauCodeForFilter = newNiveauCode;
+              _currentSerieCodeForFilter = newSerieCode;
               _currentMatiereIdForChapitresFilter = newMatiereId;
             });
           },
@@ -258,6 +285,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         content = EditChapitrePage(
           chapitreId: _editingChapitreId,
           matiereIdInitial: _editingChapitreId == null ? _currentMatiereIdForChapitresFilter : null,
+          initialNiveauCode: _editingChapitreId == null ? _currentNiveauCodeForFilter : null,
+          initialSerieCode: _editingChapitreId == null ? _currentSerieCodeForFilter : null,
           onSubmitted: () => _handleFormCompletion(fromLeconForm: false),
           onCancel: () => _handleFormCompletion(fromLeconForm: false), 
         );
@@ -307,14 +336,14 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         ),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0), // MODIFIED: Added vertical padding
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Card(
               elevation: 0, 
               color: Theme.of(context).colorScheme.surface, 
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-              margin: EdgeInsets.zero, // ADDED: Explicitly set margin to zero
-              clipBehavior: Clip.antiAlias, // ADDED: Ensure content clipping
-              child: content, // MODIFIED: Removed redundant inner Padding(all:0)
+              margin: EdgeInsets.zero, 
+              clipBehavior: Clip.antiAlias, 
+              child: content,
             ),
           ),
         ),

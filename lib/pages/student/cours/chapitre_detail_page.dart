@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easybosh_v2/models/matiere_model.dart';
-import '../../../models/chapitre_model.dart'; // Assumed to be our new ChapitreModel
-import '../../../models/lecon_model.dart';   // Import for our new LeconModel
+import '../../../models/chapitre_model.dart';
+import '../../../models/lecon_model.dart';
+import '../../../providers/lecon_provider.dart';
 import '../../student/cours/lecon_detail_page.dart';
 
 // Helper to convert hex string to Color (if needed for ChapitreModel later)
@@ -18,15 +21,15 @@ Color _hexToColorChapitre(String? hexString, {Color defaultColor = Colors.teal})
 }
 
 // Placeholder to convert string to IconData (if needed for ChapitreModel later)
-IconData _stringToIconDataChapitre(String? iconName, {IconData defaultIcon = Icons.class_outlined}) { // Corrigé ici
+IconData _stringToIconDataChapitre(String? iconName, {IconData defaultIcon = Icons.class_outlined}) {
   if (iconName == null) return defaultIcon;
-  // Add mapping if ChapitreModel gets an icon string
+  // Add specific icon mapping here if you have a predefined set
   return defaultIcon;
 }
 
-class ChapitreDetailPage extends StatefulWidget {
-  final MatiereModel matiere; // This is our new MatiereModel
-  final ChapitreModel chapitre; // This is our new ChapitreModel
+class ChapitreDetailPage extends ConsumerStatefulWidget {
+  final MatiereModel matiere;
+  final ChapitreModel chapitre;
 
   const ChapitreDetailPage({
     super.key,
@@ -35,12 +38,91 @@ class ChapitreDetailPage extends StatefulWidget {
   });
 
   @override
-  State<ChapitreDetailPage> createState() => _ChapitreDetailPageState();
+  ConsumerState<ChapitreDetailPage> createState() => _ChapitreDetailPageState();
 }
 
-class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
+class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
+  String _selectedLeconType = 'pdf'; // Default to PDF
+  final List<String> _chipTypes = ['pdf', 'video', 'audio'];
+  Map<String, int> _lessonsCountsPerType = {};
+  List<LeconModel> _leconsAffichees = [];
+
+  @override
+  void initState() {
+    super.initState();
+    print("CHAPITRE_DETAIL_PAGE - initState: ChapitreId: ${widget.chapitre.id}, Default selectedType: $_selectedLeconType");
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchDataAndProcessLecons();
+    });
+  }
+  
+  @override
+  void didUpdateWidget(covariant ChapitreDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.chapitre.id != widget.chapitre.id) {
+      print("CHAPITRE_DETAIL_PAGE - didUpdateWidget: ChapitreId changed from ${oldWidget.chapitre.id} to ${widget.chapitre.id}");
+      setState(() {
+        _selectedLeconType = 'pdf'; // Reset to PDF on chapter change
+        _lessonsCountsPerType = {};
+        _leconsAffichees = [];
+      });
+      _fetchDataAndProcessLecons();
+    }
+  }
+
+  Future<void> _fetchDataAndProcessLecons() async {
+    if (!mounted) return;
+    // Fetch lecons for the current chapter
+    await ref.read(leconProvider.notifier).fetchLecons(chapitreId: widget.chapitre.id);
+    if (mounted) {
+      _processLecons();
+    }
+  }
+
+  void _processLecons() {
+    if (!mounted) return;
+    final leconState = ref.read(leconProvider);
+    final allLeconsForChapter = List<LeconModel>.from(leconState.lecons);
+    print("CHAPITRE_DETAIL_PAGE - _processLecons: Total lecons fetched for chapter: ${allLeconsForChapter.length}");
+
+    Map<String, int> counts = {};
+    for (String type in _chipTypes) {
+      counts[type] = allLeconsForChapter.where((lecon) => lecon.type?.toLowerCase() == type).length;
+    }
+
+    List<LeconModel> filtered = allLeconsForChapter
+        .where((lecon) => lecon.type?.toLowerCase() == _selectedLeconType)
+        .toList();
+
+    // Sort based on ordreParType for the selected type, then by global ordre as fallback
+    filtered.sort((a, b) {
+      final orderA = a.ordreParType?[_selectedLeconType];
+      final orderB = b.ordreParType?[_selectedLeconType];
+
+      if (orderA != null && orderB != null) {
+        return orderA.compareTo(orderB);
+      } else if (orderA != null) {
+        return -1;
+      } else if (orderB != null) {
+        return 1;
+      } else {
+        return a.ordre.compareTo(b.ordre);
+      }
+    });
+    
+    setState(() {
+      _lessonsCountsPerType = counts;
+      _leconsAffichees = filtered;
+      print("CHAPITRE_DETAIL_PAGE - _processLecons: Counts: $_lessonsCountsPerType, SelectedType: $_selectedLeconType, FilteredLecons: ${_leconsAffichees.length}");
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final leconState = ref.watch(leconProvider);
+
+    print("CHAPITRE_DETAIL_PAGE - Build: SelectedType: $_selectedLeconType, Displaying ${_leconsAffichees.length} lecons. Counts: $_lessonsCountsPerType");
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -67,9 +149,9 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
           children: [
             _buildChapitreHeader(),
             const SizedBox(height: 24),
-            _buildStatsSection(),
-            const SizedBox(height: 24),
             _buildBreadcrumb(),
+            const SizedBox(height: 24),
+            _buildFilterChips(),
             const SizedBox(height: 16),
             const Text(
               'Leçons',
@@ -80,17 +162,114 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
               ),
             ),
             const SizedBox(height: 16),
-            _buildLeconsList(),
+            _buildLeconsList(leconState), // Pass leconState for loading/error states
           ],
         ),
       ),
     );
   }
 
+  Widget _buildFilterChips() {
+    print("CHAPITRE_DETAIL_PAGE - _buildFilterChips: Selected type: $_selectedLeconType, Counts: $_lessonsCountsPerType");
+     if (_lessonsCountsPerType.values.every((count) => count == 0) && _chipTypes.every((type) => (_lessonsCountsPerType[type] ?? 0) == 0)) {
+        // If there are no lessons of any of the filterable types, don't show chips.
+        return const SizedBox.shrink();
+    }
+    return Container(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _chipTypes.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final type = _chipTypes[index];
+          final bool isEnabled = (_lessonsCountsPerType[type] ?? 0) > 0;
+          final bool isSelected = _selectedLeconType == type;
+
+          return ChoiceChip(
+            label: Text(type.toUpperCase()),
+            selected: isSelected,
+            backgroundColor: Colors.grey[200],
+            selectedColor: Theme.of(context).primaryColor,
+            disabledColor: Colors.grey[300]?.withOpacity(0.5),
+            labelStyle: TextStyle(
+              color: isSelected ? Colors.white : (isEnabled ? Theme.of(context).textTheme.bodyLarge?.color : Colors.grey[500]),
+            ),
+            shape: StadiumBorder(side: BorderSide(color: Colors.grey[300]!)),
+            showCheckmark: false,
+            onSelected: isEnabled
+                ? (bool selected) {
+                    if (selected) {
+                      print("CHAPITRE_DETAIL_PAGE - Chip '${type.toUpperCase()}' selected.");
+                      setState(() {
+                        _selectedLeconType = type;
+                      });
+                      _processLecons();
+                    }
+                  }
+                : null,
+          );
+        },
+      ),
+    );
+  }
+
+ Widget _buildLeconsList(LeconState leconState) {
+    // Use leconState for global loading/error, but _leconsAffichees for the list content
+    if (leconState.isLoading && _leconsAffichees.isEmpty && _lessonsCountsPerType.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    // Error state if the initial fetch itself failed comprehensively
+    if (leconState.errorMessage != null && _leconsAffichees.isEmpty && _lessonsCountsPerType.values.every((c) => c ==0)) {
+      return Center(child: Text('Erreur: ${leconState.errorMessage}'));
+    }
+    // If the selected type has no lessons, show specific message
+    if (_leconsAffichees.isEmpty && (_lessonsCountsPerType[_selectedLeconType] ?? 0) == 0 && _chipTypes.contains(_selectedLeconType)) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20.0),
+          child: Text(
+            'Aucune leçon de type "${_selectedLeconType.toUpperCase()}" pour ce chapitre pour le moment.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600], fontSize: 16),
+          ),
+        ),
+      );
+    }
+    // If no lessons displayed for other reasons (e.g. initial state before _processLecons completes fully)
+    if (_leconsAffichees.isEmpty && !leconState.isLoading) {
+        return const Center(
+            child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 20.0),
+            child: Text(
+                'Aucune leçon disponible pour ce chapitre pour le moment.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+            ),
+        );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _leconsAffichees.length,
+      itemBuilder: (context, index) {
+        final lecon = _leconsAffichees[index];
+        final bool estAccessible = true; // Placeholder, determine accessibility logic
+        int displayNumero = index + 1; 
+        return _buildLeconCard(lecon, displayNumero, estAccessible);
+      },
+    );
+  }
+
   Widget _buildChapitreHeader() {
-    // ChapitreModel (new) doesn't have color, icon, difficulte, progression directly
-    final Color placeholderColor = Colors.deepPurple; // Placeholder
-    final IconData placeholderIcon = Icons.library_books; // Placeholder
+    final Color placeholderColor = widget.matiere.couleur != null 
+        ? _hexToColorChapitre(widget.matiere.couleur)
+        : Colors.deepPurple;
+    final IconData placeholderIcon = widget.matiere.icone != null
+        ? _stringToIconDataChapitre(widget.matiere.icone)
+        : Icons.library_books; 
 
     return Container(
       width: double.infinity,
@@ -135,7 +314,7 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      widget.matiere.nom, // MatiereModel's nom
+                      widget.matiere.nom, 
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: 16,
@@ -144,22 +323,22 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                   ],
                 ),
               ),
-              // Difficulte placeholder
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'N/A', // Placeholder for difficulte
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+              if (widget.chapitre.niveauCode != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    widget.chapitre.niveauCode!, 
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -173,118 +352,43 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 16),
-          // Progression placeholder
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Progression du chapitre',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 14,
-                    ),
-                  ),
-                  const Text(
-                    '0%', // Placeholder for progression
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: 0.0, // Placeholder for progression
-                  backgroundColor: Colors.white.withOpacity(0.3),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                  minHeight: 6,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsSection() {
-    // widget.chapitre.lecons (V1 structure) and widget.chapitre.nombreLecons are not directly available
-    // Using placeholders
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            'Leçons',
-            '0', // Placeholder
-            Icons.article_outlined,
-            Colors.blue,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            'Terminées',
-            '0', // Placeholder
-            Icons.check_circle_outline,
-            Colors.green,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            'Durée',
-            'N/A', // Placeholder
-            Icons.schedule,
-            Colors.orange,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(String titre, String valeur, IconData icone, Color couleur) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Icon(icone, color: couleur, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            valeur,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: couleur,
-            ),
-          ),
-          Text(
-            titre,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
-            textAlign: TextAlign.center,
-          ),
+          // Placeholder for progression - to be implemented
+          // const SizedBox(height: 16),
+          // Column(
+          //   crossAxisAlignment: CrossAxisAlignment.start,
+          //   children: [
+          //     Row(
+          //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          //       children: [
+          //         Text(
+          //           'Progression du chapitre',
+          //           style: TextStyle(
+          //             color: Colors.white.withOpacity(0.9),
+          //             fontSize: 14,
+          //           ),
+          //         ),
+          //         const Text(
+          //           '0%', // Placeholder
+          //           style: TextStyle(
+          //             color: Colors.white,
+          //             fontSize: 16,
+          //             fontWeight: FontWeight.bold,
+          //           ),
+          //         ),
+          //       ],
+          //     ),
+          //     const SizedBox(height: 8),
+          //     ClipRRect(
+          //       borderRadius: BorderRadius.circular(4),
+          //       child: LinearProgressIndicator(
+          //         value: 0.0, // Placeholder
+          //         backgroundColor: Colors.white.withOpacity(0.3),
+          //         valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+          //         minHeight: 6,
+          //       ),
+          //     ),
+          //   ],
+          // ),
         ],
       ),
     );
@@ -300,22 +404,25 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
       ),
       child: Row(
         children: [
-          Icon(Icons.home, size: 16, color: Colors.grey[600]),
+          Icon(Icons.home_outlined, size: 18, color: Colors.grey[600]),
           const SizedBox(width: 8),
           Text(
-            widget.matiere.nom, // From MatiereModel
+            widget.matiere.nom, 
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey[600],
+              color: Colors.grey[700],
             ),
           ),
-          Icon(Icons.chevron_right, size: 16, color: Colors.grey[600]),
-          Text(
-            widget.chapitre.nom, // From ChapitreModel
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.blue,
-              fontWeight: FontWeight.w500,
+          Icon(Icons.chevron_right, size: 18, color: Colors.grey[600]),
+          Expanded(
+            child: Text(
+              widget.chapitre.nom, 
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).primaryColor,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -323,48 +430,13 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
     );
   }
 
-  Widget _buildLeconsList() {
-    // The field `widget.chapitre.lecons` is from the V1 mock data structure for ChapitreModel.
-    // Our new ChapitreModel (from Supabase) does not have a `lecons` field directly.
-    // This list would need to be fetched separately (e.g., using leconProvider.fetchLeconsByChapter).
-    // For now, to ensure compilation and avoid runtime errors with mismatched LeconModel types,
-    // we'll use an empty list for `leconsTriees`.
-    final List<LeconModel> leconsTriees = []; // Empty list as placeholder
-
-    if (leconsTriees.isEmpty) {
-        return const Center(
-          child: Padding(
-            padding: EdgeInsets.symmetric(vertical: 20.0),
-            child: Text('Aucune leçon disponible pour ce chapitre pour le moment.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey, fontSize: 16),),
-          )
-        );
-    }
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: leconsTriees.length,
-      itemBuilder: (context, index) {
-        final lecon = leconsTriees[index]; // This will be our new LeconModel
-        // The logic for estPrecedenteComplete and estAccessible needs to be re-evaluated
-        // as our new LeconModel doesn't have 'estComplete' directly.
-        // Using true as placeholder for accessibility for now.
-        final bool estAccessible = true; 
-        return _buildLeconCard(lecon, index + 1, estAccessible);
-      },
-    );
-  }
-
-  // This card needs to be adapted to our new LeconModel
   Widget _buildLeconCard(LeconModel lecon, int numero, bool estAccessible) {
-    // Our new LeconModel has: nom, description, type, dureeEstimee (int?), ordre, etc.
-    // It does NOT have: estComplete, typeColor, typeIcon, titre (use nom), dureeEstimeeTexte.
-    final Color placeholderLeconColor = Colors.orange; // Placeholder
-    final IconData placeholderLeconIcon = Icons.play_circle_outline; // Placeholder
+    final Color typeColor = _getColorForLeconType(lecon.type);
+    final IconData typeIcon = _getIconForLeconType(lecon.type);
     final String dureeTexte = lecon.dureeEstimee != null ? '${lecon.dureeEstimee} min' : 'N/A';
-    // 'estComplete' is not in our LeconModel. Using false as placeholder.
+    final String typeDisplay = (lecon.type ?? 'Indéfini').replaceAll('_', ' ').toUpperCase();
+    
+    // Placeholder - replace with actual completion status from user data
     final bool estCompletePlaceholder = false; 
 
     return Container(
@@ -390,9 +462,9 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => LeconDetailPage(
-                  matiere: widget.matiere, // Corrigé ici
-                  chapitre: widget.chapitre, // Pass our ChapitreModel
-                  lecon: lecon, // Pass our LeconModel
+                  matiere: widget.matiere, 
+                  chapitre: widget.chapitre, 
+                  lecon: lecon, 
                 ),
               ),
             );
@@ -408,21 +480,21 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                     height: 40,
                     decoration: BoxDecoration(
                       color: estCompletePlaceholder
-                          ? Colors.green
+                          ? Colors.green.withOpacity(0.1)
                           : estAccessible
-                          ? placeholderLeconColor.withOpacity(0.1)
-                          : Colors.grey[300],
+                          ? typeColor.withOpacity(0.1)
+                          : Colors.grey[200],
                       shape: BoxShape.circle,
                     ),
                     child: Center(
                       child: estCompletePlaceholder
-                          ? const Icon(Icons.check, color: Colors.white, size: 20)
+                          ? const Icon(Icons.check_circle, color: Colors.green, size: 22)
                           : Text(
                         '$numero',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: estAccessible ? placeholderLeconColor : Colors.grey[600],
+                          color: estAccessible ? typeColor : Colors.grey[500],
                         ),
                       ),
                     ),
@@ -432,76 +504,79 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              placeholderLeconIcon, // Placeholder
-                              size: 18,
-                              color: estAccessible ? placeholderLeconColor : Colors.grey[600],
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              lecon.type.toUpperCase(), // From LeconModel
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: estAccessible ? placeholderLeconColor : Colors.grey[600],
+                        if (lecon.type != null) // Show type only if it exists
+                          Row(
+                            children: [
+                              Icon(
+                                typeIcon, 
+                                size: 18,
+                                color: estAccessible ? typeColor : Colors.grey[500],
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
+                              const SizedBox(width: 8),
+                              Text(
+                                typeDisplay,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: estAccessible ? typeColor : Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ),
+                        if (lecon.type != null) const SizedBox(height: 4),
                         Text(
-                          lecon.nom, // From LeconModel (was titre)
+                          lecon.nom, 
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: estAccessible ? Colors.black87 : Colors.grey[600],
+                            color: estAccessible ? Colors.black87 : Colors.grey[700],
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          lecon.description ?? 'Pas de description.', // From LeconModel
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: estAccessible ? Colors.grey[600] : Colors.grey[500],
+                        if (lecon.description != null && lecon.description!.isNotEmpty)
+                          Text(
+                            lecon.description!, 
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: estAccessible ? Colors.grey[600] : Colors.grey[500],
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
+                        if (lecon.description != null && lecon.description!.isNotEmpty) const SizedBox(height: 8),
                         Row(
                           children: [
                             Icon(
-                              Icons.schedule,
+                              Icons.schedule_outlined,
                               size: 14,
                               color: Colors.grey[500],
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              dureeTexte, // Calculated from lecon.dureeEstimee
+                              dureeTexte, 
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[500],
                               ),
                             ),
-                            if (estCompletePlaceholder) ...[
-                              const SizedBox(width: 16),
-                              Icon(
-                                Icons.check_circle,
-                                size: 14,
-                                color: Colors.green,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Terminée',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
+                            // Placeholder for completion status display
+                            // if (estCompletePlaceholder) ...[
+                            //   const SizedBox(width: 16),
+                            //   Icon(
+                            //     Icons.check_circle,
+                            //     size: 14,
+                            //     color: Colors.green,
+                            //   ),
+                            //   const SizedBox(width: 4),
+                            //   Text(
+                            //     'Terminée',
+                            //     style: TextStyle(
+                            //       fontSize: 12,
+                            //       color: Colors.green,
+                            //       fontWeight: FontWeight.w500,
+                            //     ),
+                            //   ),
+                            // ],
                           ],
                         ),
                       ],
@@ -521,5 +596,43 @@ class _ChapitreDetailPageState extends State<ChapitreDetailPage> {
         ),
       ),
     );
+  }
+
+  Color _getColorForLeconType(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'pdf':
+        return Colors.red.shade700;
+      case 'video':
+        return Colors.blue.shade700;
+      case 'audio': // Added audio case
+        return Colors.amber.shade700;
+      case 'text_rich':
+        return Colors.green.shade700;
+      case 'quiz_ref':
+        return Colors.purple.shade700;
+      case 'image':
+        return Colors.orange.shade700;
+      default:
+        return Colors.grey.shade700;
+    }
+  }
+
+  IconData _getIconForLeconType(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'pdf':
+        return Icons.picture_as_pdf_outlined;
+      case 'video':
+        return Icons.play_circle_outline;
+      case 'audio': // Added audio case
+        return Icons.audiotrack_outlined;
+      case 'text_rich':
+        return Icons.article_outlined;
+      case 'quiz_ref':
+        return Icons.quiz_outlined;
+      case 'image':
+        return Icons.image_outlined;
+      default:
+        return Icons.help_outline;
+    }
   }
 }

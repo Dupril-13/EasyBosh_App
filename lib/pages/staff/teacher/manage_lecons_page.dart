@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easybosh_v2/models/lecon_model.dart';
@@ -6,13 +7,12 @@ import 'package:easybosh_v2/models/matiere_model.dart';
 import 'package:easybosh_v2/providers/lecon_provider.dart';
 import 'package:easybosh_v2/providers/chapitre_provider.dart';
 import 'package:easybosh_v2/providers/matiere_provider.dart';
-// import './edit_lecon_page.dart'; // N'est plus utilisé pour la navigation directe
 
 class ManageLeconsPage extends ConsumerStatefulWidget {
   final int chapitreId;
   final VoidCallback onBackToChapitres;
-  final VoidCallback? onAddLecon; // Callback pour demander l'ajout
-  final Function(LeconModel lecon)? onEditLecon; // Callback pour demander l'édition
+  final VoidCallback? onAddLecon;
+  final Function(LeconModel lecon)? onEditLecon;
 
   const ManageLeconsPage({
     super.key,
@@ -27,21 +27,17 @@ class ManageLeconsPage extends ConsumerStatefulWidget {
 }
 
 class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
+  String _selectedLeconType = 'pdf'; // Default to PDF
+  final List<String> _chipTypes = ['pdf', 'video', 'audio'];
+  Map<String, int> _lessonsCountsPerType = {};
+  List<LeconModel> _leconsAffichees = []; // To hold the currently displayed (filtered and sorted) lecons
+
   @override
   void initState() {
     super.initState();
+    print("MANAGE_LECONS_PAGE - initState: ChapitreId: ${widget.chapitreId}, Default selectedType: $_selectedLeconType");
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // S'assurer que les données contextuelles (matières, chapitres) sont chargées si nécessaire.
-      // Cela est surtout pour l'affichage du nom de la matière/chapitre.
-      if (ref.read(matiereProvider).matieres.isEmpty) {
-        ref.read(matiereProvider.notifier).fetchMatieres();
-      }
-      // Le chapitre spécifique devrait être chargé par son provider si besoin, 
-      // mais une liste générale peut aider.
-      // ref.read(chapitreProvider.notifier).fetchChapitres(); 
-      
-      // Charger les leçons pour le chapitre actuel.
-      ref.read(leconProvider.notifier).fetchLecons(chapitreId: widget.chapitreId);
+      _fetchDataAndProcessLecons();
     });
   }
 
@@ -49,18 +45,62 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
   void didUpdateWidget(covariant ManageLeconsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.chapitreId != widget.chapitreId) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(leconProvider.notifier).fetchLecons(chapitreId: widget.chapitreId);
+      print("MANAGE_LECONS_PAGE - didUpdateWidget: ChapitreId changed from ${oldWidget.chapitreId} to ${widget.chapitreId}");
+      setState(() {
+        _selectedLeconType = 'pdf'; // Reset to PDF on chapter change
+        _lessonsCountsPerType = {};
+        _leconsAffichees = [];
       });
+      _fetchDataAndProcessLecons();
     }
   }
 
-  // _navigateToEditLeconPage est supprimée.
+  Future<void> _fetchDataAndProcessLecons() async {
+    if (!mounted) return;
+    if (ref.read(matiereProvider).matieres.isEmpty) {
+      await ref.read(matiereProvider.notifier).fetchMatieres();
+    }
+    if (!mounted) return;
+    await ref.read(leconProvider.notifier).fetchLecons(chapitreId: widget.chapitreId);
+    if (mounted) {
+      _processLecons();
+    }
+  }
+
+  void _processLecons() {
+    if (!mounted) return;
+    final leconState = ref.read(leconProvider);
+    final allLeconsForChapter = List<LeconModel>.from(leconState.lecons);
+    print("MANAGE_LECONS_PAGE - _processLecons: Total lecons fetched for chapter: ${allLeconsForChapter.length}");
+
+    Map<String, int> counts = {};
+    for (String type in _chipTypes) {
+      counts[type] = allLeconsForChapter.where((lecon) => lecon.type?.toLowerCase() == type).length;
+    }
+
+    List<LeconModel> filtered = allLeconsForChapter
+        .where((lecon) => lecon.type?.toLowerCase() == _selectedLeconType)
+        .toList();
+
+    filtered.sort((a, b) {
+      final orderA = a.ordreParType?[_selectedLeconType];
+      final orderB = b.ordreParType?[_selectedLeconType];
+      if (orderA != null && orderB != null) return orderA.compareTo(orderB);
+      if (orderA != null) return -1;
+      if (orderB != null) return 1;
+      return a.ordre.compareTo(b.ordre);
+    });
+    
+    setState(() {
+      _lessonsCountsPerType = counts;
+      _leconsAffichees = filtered;
+      print("MANAGE_LECONS_PAGE - _processLecons: Counts: $_lessonsCountsPerType, SelectedType: $_selectedLeconType, FilteredLecons: ${_leconsAffichees.length}");
+    });
+  }
 
   Widget _buildAddLessonButton(BuildContext context) {
-    // Appelle le callback du parent au lieu de naviguer directement.
     return ElevatedButton.icon(
-      onPressed: widget.onAddLecon, // Utilisation du callback
+      onPressed: widget.onAddLecon,
       icon: const Icon(Icons.add),
       label: const Text('Ajouter Leçon'),
       style: ElevatedButton.styleFrom(
@@ -69,80 +109,129 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
     );
   }
 
+  Widget _buildFilterChips() {
+    print("MANAGE_LECONS_PAGE - _buildFilterChips: Selected type: $_selectedLeconType, Counts: $_lessonsCountsPerType");
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Wrap(
+        spacing: 8.0,
+        runSpacing: 4.0,
+        children: _chipTypes.map((type) {
+          final bool isEnabled = (_lessonsCountsPerType[type] ?? 0) > 0;
+          final bool isSelected = _selectedLeconType == type;
+          return ChoiceChip(
+            label: Text(type.toUpperCase()),
+            selected: isSelected,
+            backgroundColor: Colors.grey[200],
+            selectedColor: Theme.of(context).primaryColor,
+            labelStyle: TextStyle(
+              color: isSelected ? Colors.white : (isEnabled ? Theme.of(context).textTheme.bodyLarge?.color : Colors.grey[500]),
+            ),
+            shape: StadiumBorder(side: BorderSide(color: Colors.grey[300]!)),
+            showCheckmark: false,
+            onSelected: isEnabled 
+                ? (bool selected) {
+                    if (selected) {
+                      print("MANAGE_LECONS_PAGE - Chip '${type.toUpperCase()}' selected.");
+                      setState(() {
+                        _selectedLeconType = type;
+                      });
+                      _processLecons();
+                    }
+                  }
+                : null,
+            disabledColor: Colors.grey[300]?.withOpacity(0.5),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final leconState = ref.watch(leconProvider);
     final matiereState = ref.watch(matiereProvider);
-    final chapitreGlobalState = ref.watch(chapitreProvider); // Pour les détails du chapitre et matière
+    final chapitreGlobalState = ref.watch(chapitreProvider);
 
     ChapitreModel? currentChapitre;
     MatiereModel? currentMatiere;
-
-    // Essayer de trouver le chapitre actuel dans l'état global des chapitres.
     try {
         currentChapitre = chapitreGlobalState.chapitres.firstWhere((ch) => ch.id == widget.chapitreId);
     } catch (e) {
-        // Essayer avec chapitrePourEdition si jamais il est chargé là
         if (chapitreGlobalState.chapitrePourEdition?.id == widget.chapitreId) {
             currentChapitre = chapitreGlobalState.chapitrePourEdition;
-        } else {
-          // Si le chapitre n'est pas trouvé, on peut déclencher un fetch pour ce chapitre spécifique
-          // ou afficher un état de chargement/erreur pour le nom du chapitre.
-          // Pour l'instant, on laisse un placeholder.
-          // Consider calling: ref.read(chapitreProvider.notifier).chargerChapitrePourDetails(widget.chapitreId);
         }
     }
-    // Si le chapitre est trouvé et a un matiereId, trouver la matière.
     if (currentChapitre != null && currentChapitre.matiereId != null && matiereState.matieres.isNotEmpty) {
         try {
             currentMatiere = matiereState.matieres.firstWhere((m) => m.id == currentChapitre!.matiereId);
-        } catch (e) { /* Matière non trouvée, currentMatiere restera null */ }
+        } catch (e) { /* Matière non trouvée */ }
     }
 
-    Widget content;
-    if (leconState.isLoading && leconState.lecons.isEmpty) {
-      content = const Center(child: CircularProgressIndicator(semanticsLabel: "Chargement des leçons..."));
-    } else if (leconState.errorMessage != null && leconState.lecons.isEmpty) {
-      content = Center(child: Text(leconState.errorMessage!, style: const TextStyle(color: Colors.red)));
-    } else if (leconState.lecons.isEmpty) {
-      content = Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.library_books_outlined, size: 80, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(
-              currentChapitre != null 
-                ? 'Aucune leçon pour \"${currentChapitre.nom}\".' 
-                : 'Aucune leçon pour ce chapitre.',
-              style: const TextStyle(fontSize: 18), textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            if (widget.onAddLecon != null) // N'afficher que si le callback est fourni
-              const Text('Appuyez sur le bouton ci-dessus pour ajouter.', textAlign: TextAlign.center),
-          ],
-        ),
-      );
-    } else {
-      final List<LeconModel> currentLecons = List.from(leconState.lecons); 
+    print("MANAGE_LECONS_PAGE - Build: SelectedType: $_selectedLeconType, Displaying ${_leconsAffichees.length} lecons.");
 
+    Widget content;
+    if (leconState.isLoading && _leconsAffichees.isEmpty && _lessonsCountsPerType.isEmpty) {
+      content = const Center(child: CircularProgressIndicator(semanticsLabel: "Chargement des leçons..."));
+    } else if (leconState.errorMessage != null && _leconsAffichees.isEmpty && _lessonsCountsPerType.values.every((c) => c ==0) ) {
+      content = Center(child: Text(leconState.errorMessage!, style: const TextStyle(color: Colors.red)));
+    } else if (_lessonsCountsPerType[_selectedLeconType] == 0 && _chipTypes.contains(_selectedLeconType)) {
+        content = Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.filter_alt_off_outlined, size: 80, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(
+                'Aucune leçon de type "${_selectedLeconType.toUpperCase()}" trouvée pour ce chapitre.',
+                style: const TextStyle(fontSize: 18), textAlign: TextAlign.center,
+              ),
+              if (widget.onAddLecon != null)
+                Padding(
+                  padding: const EdgeInsets.only(top:8.0),
+                  child: const Text('Vous pouvez en ajouter une.', textAlign: TextAlign.center),
+                ),
+            ],
+          ),
+        );
+    } else if (_leconsAffichees.isEmpty && !leconState.isLoading) {
+         content = Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.library_books_outlined, size: 80, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(
+                currentChapitre != null 
+                  ? 'Aucune leçon à afficher pour \"${currentChapitre.nom}\".' 
+                  : 'Aucune leçon à afficher pour ce chapitre.',
+                style: const TextStyle(fontSize: 18), textAlign: TextAlign.center,
+              ),
+              if (widget.onAddLecon != null)
+                 Padding(
+                  padding: const EdgeInsets.only(top:8.0),
+                  child: const Text('Appuyez sur le bouton ci-dessus pour ajouter.', textAlign: TextAlign.center),
+                ),
+            ],
+          ),
+        );
+    } else {
       content = ReorderableListView.builder(
-        buildDefaultDragHandles: false, 
-        itemCount: currentLecons.length,
+        itemCount: _leconsAffichees.length,
         itemBuilder: (context, index) {
-          final lecon = currentLecons[index];
+          final lecon = _leconsAffichees[index];
           return Card(
-            key: ValueKey(lecon.id), 
+            key: ValueKey("${_selectedLeconType}_${lecon.id}"),
             margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             elevation: 2,
             child: ListTile(
               leading: CircleAvatar(
-                child: Text('${lecon.ordre}', style: const TextStyle(color: Colors.white)),
+                child: Text('${index + 1}', style: const TextStyle(color: Colors.white)),
                 backgroundColor: Theme.of(context).colorScheme.secondary, 
               ),
               title: Text(lecon.nom, style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(
-                "Type: ${lecon.type.replaceAll('_',' ').toUpperCase()}\n${lecon.description ?? 'Pas de description'}",
+                "Type: ${(lecon.type ?? 'N/A').replaceAll('_',' ').toUpperCase()}\n${lecon.description ?? 'Pas de description'}",
                 maxLines: 2, overflow: TextOverflow.ellipsis
               ),
               trailing: Row(
@@ -150,7 +239,7 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
                 children: [
                   IconButton(icon: Icon(Icons.edit_outlined, color: Theme.of(context).colorScheme.primary),
                              tooltip: "Modifier cette leçon",
-                             onPressed: () => widget.onEditLecon?.call(lecon)), // Utilisation du callback
+                             onPressed: () => widget.onEditLecon?.call(lecon)),
                   IconButton(icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
                              tooltip: "Supprimer cette leçon",
                              onPressed: () async {
@@ -169,6 +258,7 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
                       final success = await ref.read(leconProvider.notifier).deleteLecon(lecon.id);
                       if(mounted && success) {
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"${lecon.nom}" supprimé.')));
+                        _processLecons();
                       } else if(mounted) {
                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: ${ref.read(leconProvider).errorMessage ?? "Erreur lors de la suppression"}')));
                       }
@@ -178,32 +268,63 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
                   ReorderableDragStartListener(
                     index: index,
                     child: const Tooltip(
-                      message: 'Réorganiser cette leçon',
+                      message: 'Réorganiser cette leçon (pour ce type)',
                       child: Icon(Icons.drag_handle),
                     ),
                   ),
                 ],
               ),
-              // Déclencher l'édition aussi sur le tap du ListTile pour une meilleure UX
-              onTap: () => widget.onEditLecon?.call(lecon), // Utilisation du callback
+              onTap: () => widget.onEditLecon?.call(lecon),
             ),
           );
         },
         onReorder: (int oldIndex, int newIndex) {
-          setState(() { 
+          print("MANAGE_LECONS_PAGE - onReorder: For type $_selectedLeconType, oldIndex: $oldIndex, newIndex: $newIndex");
+          setState(() {
             if (oldIndex < newIndex) {
               newIndex -= 1; 
             }
-            final LeconModel item = currentLecons.removeAt(oldIndex);
-            currentLecons.insert(newIndex, item);
-            ref.read(leconProvider.notifier).updateLeconsOrder(currentLecons, widget.chapitreId);
+            final LeconModel itemMoved = _leconsAffichees.removeAt(oldIndex);
+            _leconsAffichees.insert(newIndex, itemMoved);
+
+            List<Future<void>> updateFutures = [];
+            List<LeconModel> updatedLeconsInView = [];
+
+            for (int i = 0; i < _leconsAffichees.length; i++) {
+              LeconModel currentLecon = _leconsAffichees[i];
+              Map<String, int> updatedOrdreParType = Map.from(currentLecon.ordreParType ?? {});
+              updatedOrdreParType[_selectedLeconType] = i + 1; // 1-based order
+
+              LeconModel leconToUpdate = currentLecon.copyWith(ordreParType: updatedOrdreParType);
+              updatedLeconsInView.add(leconToUpdate); // Keep the updated instance for the local list
+              
+              print("      Updating ${leconToUpdate.nom} -> ordreParType: ${leconToUpdate.ordreParType}");
+              updateFutures.add(ref.read(leconProvider.notifier).updateLecon(leconToUpdate));
+            }
+            
+            _leconsAffichees = updatedLeconsInView; // Update the list in state with new instances
+
+            Future.wait(updateFutures).then((_){
+                print("MANAGE_LECONS_PAGE - All lecons updated for type specific order.");
+                 // Potentially call _processLecons() again if server might return different data
+                 // or if updateLecon doesn't trigger a sufficient rebuild via the provider.
+                 // For now, local state is updated, and provider should handle remote state.
+                 // _processLecons(); 
+            }).catchError((error){
+                print("MANAGE_LECONS_PAGE - Error updating lecons for type specific order: $error");
+                if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erreur lors de la mise à jour de l'ordre: $error")));
+                }
+                // Consider reverting local changes or re-fetching on error
+                 _processLecons(); // Re-process to reflect actual state from provider if updates failed
+            });
           });
         },
       );
     }
 
     return Padding(
-      padding: const EdgeInsets.all(16.0), // Padding pour le contenu interne de cette "vue"
+      padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -212,11 +333,11 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
             children: [
               TextButton.icon(
                 icon: const Icon(Icons.arrow_back_ios, size: 16),
-                label: Text(currentMatiere != null ? 'Retour à \"${currentMatiere.nom}\"' : 'Retour aux Chapitres'),
+                label: Text(currentMatiere != null ? 'Retour à "${currentMatiere.nom}"' : 'Retour aux Chapitres'),
                 onPressed: widget.onBackToChapitres,
                 style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
               ),
-              if (widget.onAddLecon != null) // N'afficher que si le callback est fourni
+              if (widget.onAddLecon != null)
                 _buildAddLessonButton(context),
             ],
           ),
@@ -244,6 +365,7 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
                  padding: EdgeInsets.only(bottom: 12.0, left: 4.0),
                  child: Text("Chargement des détails du chapitre...", style: TextStyle(fontStyle: FontStyle.italic))
              ),
+          _buildFilterChips(),
           Expanded(child: content),
         ],
       ),

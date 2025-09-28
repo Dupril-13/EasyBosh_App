@@ -17,12 +17,14 @@ class NiveauState {
   NiveauState copyWith({
     List<NiveauModel>? niveaux,
     bool? isLoading,
+    // Permet de explicitement mettre à null le message d'erreur
     String? errorMessage,
+    bool? resetErrorMessage = false,
   }) {
     return NiveauState(
       niveaux: niveaux ?? this.niveaux,
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: resetErrorMessage == true ? null : errorMessage ?? this.errorMessage,
     );
   }
 }
@@ -36,25 +38,21 @@ class NiveauNotifier extends StateNotifier<NiveauState> {
   }
 
   Future<void> fetchNiveaux() async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, resetErrorMessage: true);
     try {
-      final response = await _supabaseClient
+      final List<dynamic> response = await _supabaseClient
           .from('niveaux')
           .select()
           .order('ordre', ascending: true); // Ordonner par 'ordre' ou 'nom' selon préférence
 
-      // Gestion des erreurs Supabase v2+
-      // if (response.error != null) { // Supabase < v2
-      //   throw Exception(response.error!.message);
-      // }
-      // Pour Supabase >= v2, la réponse elle-même est la liste ou une PostgrestException est levée
-      
-      final List<dynamic> data = response as List<dynamic>; // Cast direct si succès
-      final niveaux = data.map((item) => NiveauModel.fromMap(item as Map<String, dynamic>)).toList();
+      final niveaux = response.map((item) => NiveauModel.fromMap(item as Map<String, dynamic>)).toList();
       state = state.copyWith(niveaux: niveaux, isLoading: false);
+    } on PostgrestException catch (e) {
+      print("Erreur Postgrest fetchNiveaux: ${e.message}");
+      state = state.copyWith(errorMessage: "Erreur de base de données: ${e.message}", isLoading: false);
     } catch (e) {
-      state = state.copyWith(errorMessage: e.toString(), isLoading: false);
-      // print("Erreur fetchNiveaux: $e"); // Pour debug
+      print("Erreur Générale fetchNiveaux: $e");
+      state = state.copyWith(errorMessage: "Une erreur inattendue est survenue: $e", isLoading: false);
     }
   }
 }

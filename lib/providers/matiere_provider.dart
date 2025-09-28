@@ -18,76 +18,118 @@ class MatiereState {
     bool? isLoading,
     List<MatiereModel>? matieres,
     String? errorMessage,
+    bool? resetErrorMessage = false,
   }) {
     return MatiereState(
       isLoading: isLoading ?? this.isLoading,
       matieres: matieres ?? this.matieres,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: resetErrorMessage == true ? null : errorMessage ?? this.errorMessage,
     );
   }
 }
 
 class MatiereNotifier extends StateNotifier<MatiereState> {
   final SupabaseClient _supabaseClient;
+  String? _lastNiveauCode;
+  String? _lastSerieCode;
 
-  MatiereNotifier(this._supabaseClient) : super(MatiereState()) {
-    fetchMatieres();
-  }
+  MatiereNotifier(this._supabaseClient) : super(MatiereState());
 
-  Future<void> fetchMatieres() async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+  Future<void> fetchMatieres({String? niveauCode, String? serieCode}) async {
+    // Si niveauCode ou serieCode sont null, nous ne pouvons pas filtrer spécifiquement.
+    // Décidez si vous voulez charger toutes les matières, ou ne rien charger et montrer un message.
+    // Pour l'instant, si l'un des deux est null, on considère que le contexte n'est pas complet pour un élève.
+    if (niveauCode == null || niveauCode.isEmpty || serieCode == null || serieCode.isEmpty) {
+      state = state.copyWith(isLoading: false, matieres: [], errorMessage: "Niveau ou série non spécifié pour charger les matières.");
+      return;
+    }
+    state = state.copyWith(isLoading: true, resetErrorMessage: true);
+    _lastNiveauCode = niveauCode;
+    _lastSerieCode = serieCode;
+
     try {
-      final response = await _supabaseClient
-          .from('matieres')
-          .select() // Sélecteur de colonnes peut être ajouté ici si nécessaire, ex: .select('id, nom, code, ...')
-          .order('nom', ascending: true); 
+      final matiereNiveauSerieResponse = await _supabaseClient
+          .from('matiere_niveau_serie')
+          .select('matiere_id')
+          .eq('niveau_code', niveauCode)
+          .eq('serie_code', serieCode);
 
-      final List<MatiereModel> fetchedMatieres = (response as List)
-          .map((data) => MatiereModel.fromMap(data as Map<String, dynamic>))
+      final List<int> matiereIds = matiereNiveauSerieResponse
+          .map((item) => item['matiere_id'] as int)
           .toList();
+
+      List<MatiereModel> fetchedMatieres;
+      if (matiereIds.isEmpty) {
+        fetchedMatieres = [];
+      } else {
+        final matieresResponse = await _supabaseClient
+            .from('matieres')
+            .select()
+            .filter('id', 'in', '(${matiereIds.join(',')})')
+            .order('nom', ascending: true);
+        
+        fetchedMatieres = matieresResponse
+            .map((data) => MatiereModel.fromMap(data as Map<String, dynamic>))
+            .toList();
+      }
       state = state.copyWith(isLoading: false, matieres: fetchedMatieres);
+    } on PostgrestException catch (e) {
+      print("Erreur Postgrest fetchMatieres: ${e.message}");
+      state = state.copyWith(isLoading: false, errorMessage: "Erreur de base de données (matieres): ${e.message}");
     } catch (e) {
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur Supabase (fetchMatieres): ${e.toString()}");
+      print("Erreur Générale fetchMatieres: $e");
+      state = state.copyWith(isLoading: false, errorMessage: "Une erreur inattendue est survenue (matieres): $e");
     }
   }
 
+  // Méthode pour définir un message d'erreur depuis l'extérieur (ex: si profil élève manquant)
+  void setExternalError(String message) {
+    state = state.copyWith(isLoading: false, matieres: [], errorMessage: message, resetErrorMessage: false);
+  }
+
+  // Méthode pour vider les données et erreurs
+  void clearDataAndError() {
+    state = state.copyWith(isLoading: false, matieres: [], errorMessage: null, resetErrorMessage: true);
+  }
+
   Future<bool> addMatiere(MatiereModel matiereAAjouter) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, resetErrorMessage: true);
     try {
-      // L'ID est auto-généré par Supabase (SERIAL), donc on ne l'inclut pas dans le payload d'insertion.
-      // matiereAAjouter est un MatiereModel qui peut avoir un ID (par ex. 0 ou un placeholder) 
-      // mais toMapForInsert() ne devrait pas l'inclure.
       final response = await _supabaseClient
           .from('matieres')
-          .insert(matiereAAjouter.toMapForInsert()) 
-          .select(); // Récupère la ligne insérée avec l'ID généré et les valeurs par défaut (createdAt, updatedAt)
+          .insert(matiereAAjouter.toMapForInsert())
+          .select();
 
       final List<MatiereModel> newMatieresList = (response as List)
         .map((data) => MatiereModel.fromMap(data as Map<String, dynamic>))
         .toList();
 
       if (newMatieresList.isNotEmpty) {
-        state = state.copyWith(
-          isLoading: false,
-          matieres: [newMatieresList.first, ...state.matieres], 
-        );
+        if (_lastNiveauCode != null && _lastSerieCode != null) {
+           await fetchMatieres(niveauCode: _lastNiveauCode, serieCode: _lastSerieCode);
+        } 
         return true;
       } else {
          throw Exception("N'a pas pu ajouter la matière et récupérer la confirmation.");
       }
+    } on PostgrestException catch (e) {
+      print("Erreur Postgrest addMatiere: ${e.message}");
+      state = state.copyWith(isLoading: false, errorMessage: "Erreur de base de données (ajout matière): ${e.message}");
+      return false;
     } catch (e) {
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur Supabase (addMatiere): ${e.toString()}");
+      print("Erreur Générale addMatiere: $e");
+      state = state.copyWith(isLoading: false, errorMessage: "Erreur inattendue (ajout matière): $e");
       return false;
     }
   }
 
   Future<bool> updateMatiere(MatiereModel matiereAMettreAJour) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, resetErrorMessage: true);
     try {
       final response = await _supabaseClient
           .from('matieres')
-          .update(matiereAMettreAJour.toMapForUpdate()) 
-          .eq('id', matiereAMettreAJour.id) // L'ID est un int
+          .update(matiereAMettreAJour.toMapForUpdate())
+          .eq('id', matiereAMettreAJour.id)
           .select();
 
       final List<MatiereModel> updatedMatieresList = (response as List)
@@ -95,42 +137,47 @@ class MatiereNotifier extends StateNotifier<MatiereState> {
         .toList();
       
       if (updatedMatieresList.isNotEmpty) {
-        state = state.copyWith(
-          isLoading: false,
-          matieres: state.matieres.map((m) => m.id == matiereAMettreAJour.id ? updatedMatieresList.first : m).toList(),
-        );
+        if (_lastNiveauCode != null && _lastSerieCode != null) {
+          await fetchMatieres(niveauCode: _lastNiveauCode, serieCode: _lastSerieCode);
+        }
         return true;
       } else {
-        // Si la liste est vide, cela peut signifier que la matière avec cet ID n'a pas été trouvée
-        // ou que la mise à jour a réussi mais .select() n'a rien retourné (moins probable avec Supabase).
-        // Un refetch peut être une bonne sécurité, ou lancer une exception.
-        // throw Exception("La matière à mettre à jour n'a pas été trouvée ou le retour est vide.");
-        // Pour l'instant, on considère que si select est vide, c'est un problème potentiel.
-        fetchMatieres(); // Pour s'assurer de la cohérence de l'état local.
-        state = state.copyWith(isLoading: false, errorMessage: "Matière mise à jour, mais n'a pas pu récupérer la confirmation. Liste rafraîchie.");
-        return false; // Ou true si vous considérez que la MàJ a pu réussir côté DB.
+        state = state.copyWith(isLoading: false, errorMessage: "Matière mise à jour, mais n'a pas pu récupérer la confirmation.");
+        if (_lastNiveauCode != null && _lastSerieCode != null) { 
+          await fetchMatieres(niveauCode: _lastNiveauCode, serieCode: _lastSerieCode);
+        }
+        return false; 
       }
+    } on PostgrestException catch (e) {
+      print("Erreur Postgrest updateMatiere: ${e.message}");
+      state = state.copyWith(isLoading: false, errorMessage: "Erreur de base de données (maj matière): ${e.message}");
+      return false;
     } catch (e) {
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur Supabase (updateMatiere): ${e.toString()}");
+      print("Erreur Générale updateMatiere: $e");
+      state = state.copyWith(isLoading: false, errorMessage: "Erreur inattendue (maj matière): $e");
       return false;
     }
   }
 
-  Future<bool> deleteMatiere(int matiereId) async { // L'ID est un int
-    state = state.copyWith(isLoading: true, errorMessage: null);
+  Future<bool> deleteMatiere(int matiereId) async {
+    state = state.copyWith(isLoading: true, resetErrorMessage: true);
     try {
       await _supabaseClient
           .from('matieres')
           .delete()
           .eq('id', matiereId);
       
-      state = state.copyWith(
-        isLoading: false,
-        matieres: state.matieres.where((m) => m.id != matiereId).toList(),
-      );
+      if (_lastNiveauCode != null && _lastSerieCode != null) {
+        await fetchMatieres(niveauCode: _lastNiveauCode, serieCode: _lastSerieCode);
+      }
       return true;
+    } on PostgrestException catch (e) {
+      print("Erreur Postgrest deleteMatiere: ${e.message}");
+      state = state.copyWith(isLoading: false, errorMessage: "Erreur de base de données (sup matière): ${e.message}");
+      return false;
     } catch (e) {
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur Supabase (deleteMatiere): ${e.toString()}");
+      print("Erreur Générale deleteMatiere: $e");
+      state = state.copyWith(isLoading: false, errorMessage: "Erreur inattendue (sup matière): $e");
       return false;
     }
   }

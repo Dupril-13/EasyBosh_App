@@ -65,7 +65,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/staff-login',
+    initialLocation: '/staff-login', // MODIFIED: Start with Staff Login page
     debugLogDiagnostics: true,
     refreshListenable: authListenable,
 
@@ -87,23 +87,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (!isLoggedIn) {
         if (!isOnPublicAuthPath && !isOnVerificationPath) {
+          // Si l'utilisateur n'est pas connecté et n'est pas sur une page d'authentification publique
+          // ou de vérification, le rediriger vers la page de connexion du staff par défaut.
+          // Si vous souhaitez une page de démarrage différente pour les utilisateurs non connectés (par exemple, '/get-started'),
+          // vous pouvez la spécifier ici.
           return '/staff-login'; 
         }
       } else {
+        // Utilisateur connecté
         if (isOnPublicAuthPath) {
+          // Si l'utilisateur connecté essaie d'accéder à une page d'authentification,
+          // le rediriger vers son tableau de bord respectif.
           if (userRole == 'admin') return '/admin/dashboard';
           if (userRole == 'teacher') return '/teacher/dashboard';
           if (userRole == 'student') return '/cours';
+          // Fallback si le rôle est inconnu mais connecté (ne devrait pas arriver)
           return '/staff-login';
         }
+        // Redirections basées sur le rôle pour les accès non autorisés
         if (userRole == 'student' && (currentLocation.startsWith('/admin') || currentLocation.startsWith('/teacher'))) {
-          return '/cours';
+          return '/cours'; // Les étudiants ne peuvent pas accéder aux pages admin/teacher
         }
         if (userRole == 'teacher' && currentLocation.startsWith('/admin')) {
-          return '/teacher/dashboard';
+          return '/teacher/dashboard'; // Les enseignants ne peuvent pas accéder aux pages admin
         }
       }
-      return null; 
+      return null; // Pas de redirection nécessaire
     },
     routes: <RouteBase>[
       GoRoute(

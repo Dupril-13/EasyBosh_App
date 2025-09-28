@@ -18,11 +18,12 @@ class SerieState {
     List<SerieModel>? series,
     bool? isLoading,
     String? errorMessage,
+    bool? resetErrorMessage = false,
   }) {
     return SerieState(
       series: series ?? this.series,
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: resetErrorMessage == true ? null : errorMessage ?? this.errorMessage,
     );
   }
 }
@@ -36,19 +37,21 @@ class SerieNotifier extends StateNotifier<SerieState> {
   }
 
   Future<void> fetchSeries() async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, resetErrorMessage: true);
     try {
-      final response = await _supabaseClient
+      final List<dynamic> response = await _supabaseClient
           .from('series')
           .select()
           .order('nom', ascending: true); // Ordonner par 'nom' ou un champ d'ordre spécifique
 
-      final List<dynamic> data = response as List<dynamic>; 
-      final series = data.map((item) => SerieModel.fromMap(item as Map<String, dynamic>)).toList();
-      state = state.copyWith(series: series, isLoading: false);
+      final seriesData = response.map((item) => SerieModel.fromMap(item as Map<String, dynamic>)).toList();
+      state = state.copyWith(series: seriesData, isLoading: false);
+    } on PostgrestException catch (e) {
+      print("Erreur Postgrest fetchSeries: ${e.message}");
+      state = state.copyWith(errorMessage: "Erreur de base de données: ${e.message}", isLoading: false);
     } catch (e) {
-      state = state.copyWith(errorMessage: e.toString(), isLoading: false);
-      // print("Erreur fetchSeries: $e"); // Pour debug
+      print("Erreur Générale fetchSeries: $e");
+      state = state.copyWith(errorMessage: "Une erreur inattendue est survenue: $e", isLoading: false);
     }
   }
 }
