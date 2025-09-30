@@ -27,7 +27,7 @@ class _GetStartedPageState extends State<GetStartedPage> {
       'subtitle': 'Explore une variété de cours, des épreuves pour tester tes connaissances et des quiz ludiques.',
     },
     {
-      'image': 'assets/images/Design stats-rafiki.png',
+      'image': 'assets/images/Design_stats-rafiki.png',
       'title': 'Tableau de Bord Personnalisé',
       'subtitle': 'Suis ta progression en un coup d\'œil grâce à un tableau de bord intuitif et motivant.',
     },

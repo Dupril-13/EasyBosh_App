@@ -5,9 +5,12 @@ import 'package:easybosh_v2/models/matiere_model.dart';
 import '../../../models/chapitre_model.dart';
 import '../../../models/lecon_model.dart';
 import '../../../providers/lecon_provider.dart';
+import '../../../providers/recent_lecons_provider.dart'; // Added import
 import '../../student/cours/lecon_detail_page.dart';
+import '../../common/pdf_viewer_page.dart';
+import '../../common/video_player_page.dart';
+import '../../common/audio_player_page.dart'; // Added import for AudioPlayerPage
 
-// Helper to convert hex string to Color (if needed for ChapitreModel later)
 Color _hexToColorChapitre(String? hexString, {Color defaultColor = Colors.teal}) {
   if (hexString == null) return defaultColor;
   final buffer = StringBuffer();
@@ -20,10 +23,10 @@ Color _hexToColorChapitre(String? hexString, {Color defaultColor = Colors.teal})
   }
 }
 
-// Placeholder to convert string to IconData (if needed for ChapitreModel later)
 IconData _stringToIconDataChapitre(String? iconName, {IconData defaultIcon = Icons.class_outlined}) {
   if (iconName == null) return defaultIcon;
-  // Add specific icon mapping here if you have a predefined set
+  // This function should ideally map iconName strings to actual IconData
+  // For now, it just returns the default.
   return defaultIcon;
 }
 
@@ -42,7 +45,7 @@ class ChapitreDetailPage extends ConsumerStatefulWidget {
 }
 
 class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
-  String _selectedLeconType = 'pdf'; // Default to PDF
+  String _selectedLeconType = 'pdf'; 
   final List<String> _chipTypes = ['pdf', 'video', 'audio'];
   Map<String, int> _lessonsCountsPerType = {};
   List<LeconModel> _leconsAffichees = [];
@@ -62,7 +65,7 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
     if (oldWidget.chapitre.id != widget.chapitre.id) {
       print("CHAPITRE_DETAIL_PAGE - didUpdateWidget: ChapitreId changed from ${oldWidget.chapitre.id} to ${widget.chapitre.id}");
       setState(() {
-        _selectedLeconType = 'pdf'; // Reset to PDF on chapter change
+        _selectedLeconType = 'pdf'; 
         _lessonsCountsPerType = {};
         _leconsAffichees = [];
       });
@@ -72,7 +75,6 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
 
   Future<void> _fetchDataAndProcessLecons() async {
     if (!mounted) return;
-    // Fetch lecons for the current chapter
     await ref.read(leconProvider.notifier).fetchLecons(chapitreId: widget.chapitre.id);
     if (mounted) {
       _processLecons();
@@ -82,19 +84,20 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
   void _processLecons() {
     if (!mounted) return;
     final leconState = ref.read(leconProvider);
-    final allLeconsForChapter = List<LeconModel>.from(leconState.lecons);
-    print("CHAPITRE_DETAIL_PAGE - _processLecons: Total lecons fetched for chapter: ${allLeconsForChapter.length}");
+    final allLeconsForChapter = List<LeconModel>.from(leconState.lecons)
+        .where((lecon) => lecon.actif == true) 
+        .toList();
+    print("CHAPITRE_DETAIL_PAGE - _processLecons: Total ACTIVE lecons for chapter: ${allLeconsForChapter.length}");
 
     Map<String, int> counts = {};
     for (String type in _chipTypes) {
-      counts[type] = allLeconsForChapter.where((lecon) => lecon.type?.toLowerCase() == type).length;
+      counts[type] = allLeconsForChapter.where((lecon) => lecon.type.toLowerCase() == type).length;
     }
 
     List<LeconModel> filtered = allLeconsForChapter
-        .where((lecon) => lecon.type?.toLowerCase() == _selectedLeconType)
+        .where((lecon) => lecon.type.toLowerCase() == _selectedLeconType)
         .toList();
 
-    // Sort based on ordreParType for the selected type, then by global ordre as fallback
     filtered.sort((a, b) {
       final orderA = a.ordreParType?[_selectedLeconType];
       final orderB = b.ordreParType?[_selectedLeconType];
@@ -162,7 +165,7 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
               ),
             ),
             const SizedBox(height: 16),
-            _buildLeconsList(leconState), // Pass leconState for loading/error states
+            _buildLeconsList(leconState), 
           ],
         ),
       ),
@@ -172,7 +175,6 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
   Widget _buildFilterChips() {
     print("CHAPITRE_DETAIL_PAGE - _buildFilterChips: Selected type: $_selectedLeconType, Counts: $_lessonsCountsPerType");
      if (_lessonsCountsPerType.values.every((count) => count == 0) && _chipTypes.every((type) => (_lessonsCountsPerType[type] ?? 0) == 0)) {
-        // If there are no lessons of any of the filterable types, don't show chips.
         return const SizedBox.shrink();
     }
     return Container(
@@ -183,11 +185,12 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final type = _chipTypes[index];
-          final bool isEnabled = (_lessonsCountsPerType[type] ?? 0) > 0;
+          final count = _lessonsCountsPerType[type] ?? 0;
+          final bool isEnabled = count > 0;
           final bool isSelected = _selectedLeconType == type;
 
           return ChoiceChip(
-            label: Text(type.toUpperCase()),
+            label: Text('${type.toUpperCase()} ($count)'), // Modified to show count
             selected: isSelected,
             backgroundColor: Colors.grey[200],
             selectedColor: Theme.of(context).primaryColor,
@@ -215,15 +218,12 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
   }
 
  Widget _buildLeconsList(LeconState leconState) {
-    // Use leconState for global loading/error, but _leconsAffichees for the list content
     if (leconState.isLoading && _leconsAffichees.isEmpty && _lessonsCountsPerType.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    // Error state if the initial fetch itself failed comprehensively
     if (leconState.errorMessage != null && _leconsAffichees.isEmpty && _lessonsCountsPerType.values.every((c) => c ==0)) {
       return Center(child: Text('Erreur: ${leconState.errorMessage}'));
     }
-    // If the selected type has no lessons, show specific message
     if (_leconsAffichees.isEmpty && (_lessonsCountsPerType[_selectedLeconType] ?? 0) == 0 && _chipTypes.contains(_selectedLeconType)) {
       return Center(
         child: Padding(
@@ -236,7 +236,6 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
         ),
       );
     }
-    // If no lessons displayed for other reasons (e.g. initial state before _processLecons completes fully)
     if (_leconsAffichees.isEmpty && !leconState.isLoading) {
         return const Center(
             child: Padding(
@@ -256,7 +255,7 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
       itemCount: _leconsAffichees.length,
       itemBuilder: (context, index) {
         final lecon = _leconsAffichees[index];
-        final bool estAccessible = true; // Placeholder, determine accessibility logic
+        final bool estAccessible = true; 
         int displayNumero = index + 1; 
         return _buildLeconCard(lecon, displayNumero, estAccessible);
       },
@@ -352,43 +351,6 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
-          // Placeholder for progression - to be implemented
-          // const SizedBox(height: 16),
-          // Column(
-          //   crossAxisAlignment: CrossAxisAlignment.start,
-          //   children: [
-          //     Row(
-          //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          //       children: [
-          //         Text(
-          //           'Progression du chapitre',
-          //           style: TextStyle(
-          //             color: Colors.white.withOpacity(0.9),
-          //             fontSize: 14,
-          //           ),
-          //         ),
-          //         const Text(
-          //           '0%', // Placeholder
-          //           style: TextStyle(
-          //             color: Colors.white,
-          //             fontSize: 16,
-          //             fontWeight: FontWeight.bold,
-          //           ),
-          //         ),
-          //       ],
-          //     ),
-          //     const SizedBox(height: 8),
-          //     ClipRRect(
-          //       borderRadius: BorderRadius.circular(4),
-          //       child: LinearProgressIndicator(
-          //         value: 0.0, // Placeholder
-          //         backgroundColor: Colors.white.withOpacity(0.3),
-          //         valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-          //         minHeight: 6,
-          //       ),
-          //     ),
-          //   ],
-          // ),
         ],
       ),
     );
@@ -434,9 +396,7 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
     final Color typeColor = _getColorForLeconType(lecon.type);
     final IconData typeIcon = _getIconForLeconType(lecon.type);
     final String dureeTexte = lecon.dureeEstimee != null ? '${lecon.dureeEstimee} min' : 'N/A';
-    final String typeDisplay = (lecon.type ?? 'Indéfini').replaceAll('_', ' ').toUpperCase();
-    
-    // Placeholder - replace with actual completion status from user data
+    final String typeDisplay = lecon.type.replaceAll('_', ' ').toUpperCase();
     final bool estCompletePlaceholder = false; 
 
     return Container(
@@ -458,16 +418,53 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: estAccessible ? () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => LeconDetailPage(
-                  matiere: widget.matiere, 
-                  chapitre: widget.chapitre, 
-                  lecon: lecon, 
+            // MARQUER LA LEÇON COMME VUE
+            ref.read(recentLeconsProvider.notifier).markLeconAsViewed(lecon.id);
+
+            // LOGIQUE DE NAVIGATION EXISTANTE
+            if (lecon.type == 'pdf' && lecon.urlMedia != null && lecon.urlMedia!.isNotEmpty) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PdfViewerPage(
+                    pdfUrl: lecon.urlMedia!,
+                    lessonTitle: lecon.nom,
+                  ),
                 ),
-              ),
-            );
+              );
+            } else if (lecon.type == 'video' && lecon.urlMedia != null && lecon.urlMedia!.isNotEmpty) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => VideoPlayerPage(
+                    videoUrl: lecon.urlMedia!,
+                    lessonTitle: lecon.nom,
+                  ),
+                ),
+              );
+            } else if (lecon.type == 'audio' && lecon.urlMedia != null && lecon.urlMedia!.isNotEmpty) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AudioPlayerPage(
+                    audioUrl: lecon.urlMedia!,
+                    lessonTitle: lecon.nom,
+                  ),
+                ),
+              );
+            } else {
+              // Fallback or other lecon types
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => LeconDetailPage(
+                    matiere: widget.matiere, 
+                    chapitre: widget.chapitre, 
+                    lecon: lecon, 
+                  ),
+                ),
+              );
+            }
           } : null,
           child: Opacity(
             opacity: estAccessible ? 1.0 : 0.5,
@@ -504,26 +501,25 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (lecon.type != null) // Show type only if it exists
-                          Row(
-                            children: [
-                              Icon(
-                                typeIcon, 
-                                size: 18,
+                        Row(
+                          children: [
+                            Icon(
+                              typeIcon, 
+                              size: 18,
+                              color: estAccessible ? typeColor : Colors.grey[500],
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              typeDisplay,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
                                 color: estAccessible ? typeColor : Colors.grey[500],
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                typeDisplay,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: estAccessible ? typeColor : Colors.grey[500],
-                                ),
-                              ),
-                            ],
-                          ),
-                        if (lecon.type != null) const SizedBox(height: 4),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
                         Text(
                           lecon.nom, 
                           style: TextStyle(
@@ -559,24 +555,6 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
                                 color: Colors.grey[500],
                               ),
                             ),
-                            // Placeholder for completion status display
-                            // if (estCompletePlaceholder) ...[
-                            //   const SizedBox(width: 16),
-                            //   Icon(
-                            //     Icons.check_circle,
-                            //     size: 14,
-                            //     color: Colors.green,
-                            //   ),
-                            //   const SizedBox(width: 4),
-                            //   Text(
-                            //     'Terminée',
-                            //     style: TextStyle(
-                            //       fontSize: 12,
-                            //       color: Colors.green,
-                            //       fontWeight: FontWeight.w500,
-                            //     ),
-                            //   ),
-                            // ],
                           ],
                         ),
                       ],
@@ -604,7 +582,7 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
         return Colors.red.shade700;
       case 'video':
         return Colors.blue.shade700;
-      case 'audio': // Added audio case
+      case 'audio': 
         return Colors.amber.shade700;
       case 'text_rich':
         return Colors.green.shade700;
@@ -623,7 +601,7 @@ class _ChapitreDetailPageState extends ConsumerState<ChapitreDetailPage> {
         return Icons.picture_as_pdf_outlined;
       case 'video':
         return Icons.play_circle_outline;
-      case 'audio': // Added audio case
+      case 'audio': 
         return Icons.audiotrack_outlined;
       case 'text_rich':
         return Icons.article_outlined;

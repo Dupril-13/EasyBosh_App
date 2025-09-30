@@ -10,7 +10,7 @@ class ChapitreModel {
   final List<String>? objectifs; // Vient de ARRAY dans la BD
   final List<String>? prerequis; // Vient de ARRAY dans la BD
   final bool actif;
-  final DateTime createdAt;
+  final DateTime? createdAt; // MODIFIÉ: rendu nullable
   final DateTime? updatedAt;
   final String? createdBy; // UUID de l'utilisateur profile
 
@@ -26,33 +26,65 @@ class ChapitreModel {
     this.objectifs,
     this.prerequis,
     this.actif = true,
-    required this.createdAt,
+    this.createdAt, // MODIFIÉ: retiré 'required'
     this.updatedAt,
     this.createdBy,
   });
 
   factory ChapitreModel.fromMap(Map<String, dynamic> map) {
+    final idValue = map['id'];
+    if (idValue == null || !(idValue is int)) {
+      throw ArgumentError('ChapitreModel.fromMap: Le champ "id" est manquant, null ou n\'est pas un entier. Valeur reçue: $idValue');
+    }
+
+    final nomValue = map['nom'];
+    if (nomValue == null || !(nomValue is String) || nomValue.isEmpty) {
+      throw ArgumentError('ChapitreModel.fromMap: Le champ "nom" est manquant, null ou vide. Valeur reçue: $nomValue');
+    }
+
+    int parsedOrdre = 0; 
+    final ordreValue = map['ordre'];
+    if (ordreValue != null) {
+      if (ordreValue is int) {
+        parsedOrdre = ordreValue;
+      } else if (ordreValue is String) {
+        parsedOrdre = int.tryParse(ordreValue) ?? 0;
+      } else if (ordreValue is double) { 
+          parsedOrdre = ordreValue.toInt();
+      }
+    }
+    
+    // Gérer createdAt (maintenant nullable)
+    final createdAtValue = map['created_at'] as String?;
+    DateTime? parsedCreatedAt;
+    if (createdAtValue != null) {
+      try {
+        parsedCreatedAt = DateTime.parse(createdAtValue);
+      } catch (e) {
+        print('ChapitreModel.fromMap: AVERTISSEMENT - Impossible de parser la chaîne "created_at": "$createdAtValue". createdAt sera null. Erreur: $e');
+      }
+    }
+
     return ChapitreModel(
-      id: map['id'] as int,
+      id: idValue as int, 
       matiereId: map['matiere_id'] as int?,
       niveauCode: map['niveau_code'] as String?,
       serieCode: map['serie_code'] as String?,
-      nom: map['nom'] as String,
+      nom: nomValue as String, 
       description: map['description'] as String?,
-      ordre: map['ordre'] as int? ?? 0,
+      ordre: parsedOrdre, 
       dureeEstimee: map['duree_estimee'] as int?,
       objectifs: (map['objectifs'] as List<dynamic>?)?.map((e) => e as String).toList(),
       prerequis: (map['prerequis'] as List<dynamic>?)?.map((e) => e as String).toList(),
-      actif: map['actif'] as bool? ?? true,
-      createdAt: DateTime.parse(map['created_at'] as String),
+      actif: map['actif'] as bool? ?? true, 
+      createdAt: parsedCreatedAt, 
       updatedAt: map['updated_at'] != null ? DateTime.parse(map['updated_at'] as String) : null,
       createdBy: map['created_by'] as String?,
     );
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      // 'id': id, // Souvent non inclus pour la création si auto-généré
+    final map = <String, dynamic>{
       'matiere_id': matiereId,
       'niveau_code': niveauCode,
       'serie_code': serieCode,
@@ -63,10 +95,13 @@ class ChapitreModel {
       'objectifs': objectifs,
       'prerequis': prerequis,
       'actif': actif,
-      // 'created_at': createdAt.toIso8601String(), // géré par BD
-      // 'updated_at': updatedAt?.toIso8601String(), // géré par BD
-      'created_by': createdBy,
+      // 'id', 'created_at', 'updated_at' sont gérés par la BD ou non pertinents pour l'insert/update direct
     };
+
+    if (createdBy != null) {
+      map['created_by'] = createdBy;
+    }
+    return map;
   }
 
   ChapitreModel copyWith({

@@ -10,7 +10,7 @@ class LeconModel {
   final String type; // ex: 'text_rich', 'video', 'pdf', 'quiz_ref'
   final String? urlMedia;
   final bool actif;
-  final DateTime createdAt;
+  final DateTime? createdAt; // MODIFIÉ: rendu nullable
   final DateTime? updatedAt;
   final String? createdBy; // UUID de l'utilisateur profile
 
@@ -26,7 +26,7 @@ class LeconModel {
     required this.type,
     this.urlMedia,
     this.actif = true,
-    required this.createdAt,
+    this.createdAt, // MODIFIÉ: retiré 'required'
     this.updatedAt,
     this.createdBy,
   });
@@ -44,6 +44,16 @@ class LeconModel {
       }
     }
 
+    final createdAtValue = map['created_at'] as String?;
+    DateTime? parsedCreatedAt;
+    if (createdAtValue != null) {
+      try {
+        parsedCreatedAt = DateTime.parse(createdAtValue);
+      } catch (e) {
+        print('LeconModel.fromMap: AVERTISSEMENT - Impossible de parser la chaîne "created_at": "$createdAtValue". createdAt sera null. Erreur: $e');
+      }
+    }
+
     return LeconModel(
       id: map['id'] as int,
       chapitreId: map['chapitre_id'] as int?,
@@ -56,7 +66,7 @@ class LeconModel {
       type: map['type'] as String? ?? 'text_rich',
       urlMedia: map['url_media'] as String?,
       actif: map['actif'] as bool? ?? true,
-      createdAt: DateTime.parse(map['created_at'] as String),
+      createdAt: parsedCreatedAt, // MODIFIÉ
       updatedAt: map['updated_at'] != null ? DateTime.parse(map['updated_at'] as String) : null,
       createdBy: map['created_by'] as String?,
     );
@@ -84,8 +94,6 @@ class LeconModel {
     map.remove('created_by'); 
     map.remove('chapitre_id'); 
     map.remove('id'); // L'ID est utilisé dans l'eq(), pas dans le corps de l'update
-    // On pourrait vouloir mettre à jour `updated_at` manuellement si la BD ne le fait pas par trigger
-    // map['updated_at'] = DateTime.now().toIso8601String(); 
     return map;
   }
 

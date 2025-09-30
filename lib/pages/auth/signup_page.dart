@@ -13,7 +13,7 @@ class SignupPage extends ConsumerStatefulWidget {
 class _SignupPageState extends ConsumerState<SignupPage> {
   final _formKey = GlobalKey<FormState>();
   String? _selectedClasse; // Stocke la valeur affichée (ex: "Troisième")
-  String? _selectedSerie;  // Stocke la valeur affichée (ex: "Série A")
+  String? _selectedSerie; // Stocke la valeur affichée (ex: "Série A")
 
   // Controllers pour les champs de texte
   final _nomController = TextEditingController();
@@ -23,7 +23,6 @@ class _SignupPageState extends ConsumerState<SignupPage> {
   final _confirmPasswordController = TextEditingController();
 
   // Maps pour la correspondance Affichage <-> Code BD
-  // IMPORTANT: Les VALEURS (codes) doivent correspondre EXACTEMENT aux `code` dans vos tables `niveaux` et `series`
   final Map<String, String> _classesMap = {
     "Troisième": "3eme",
     "Première": "1ere",
@@ -34,7 +33,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     "Série A": "A",
     "Série C": "C",
     "Série D": "D",
-    "Série TI": "TI", // Assurez-vous que 'TI' est un code valide dans votre table series
+    "Série TI": "TI",
   };
 
   late List<String> _displayClasses;
@@ -53,7 +52,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
- @override
+  @override
   void initState() {
     super.initState();
     _displayClasses = _classesMap.keys.toList();
@@ -70,29 +69,67 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     super.dispose();
   }
 
-  // Inscription avec Supabase
   Future<void> _signUp() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final String? selectedLevelCode = _selectedClasse != null ? _classesMap[_selectedClasse!] : null;
-    final String? selectedSerieCode = _selectedSerie != null ? _seriesMap[_selectedSerie!] : null;
+    final String? selectedLevelCode =
+    _selectedClasse != null ? _classesMap[_selectedClasse!] : null;
+    final String? selectedSerieCode =
+    _selectedSerie != null ? _seriesMap[_selectedSerie!] : null;
 
+    // DEBUG PRINT 1: Before explicit checks
+    print(
+        'DEBUG SIGNUP: Before explicit checks - selectedLevelCode: $selectedLevelCode, selectedSerieCode: $selectedSerieCode');
+    print(
+        'DEBUG SIGNUP: _selectedClasse: $_selectedClasse, _selectedSerie: $_selectedSerie');
+
+    // ----- DEBUT DES VERIFICATIONS -----
     if (_selectedClasse != null && selectedLevelCode == null) {
+      print('DEBUG SIGNUP: Check failed - Invalid class code for DB.');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erreur: Code de classe invalide pour la base de données.'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Erreur: Code de classe invalide pour la base de données.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
       return;
     }
-    if (_selectedClasse != null && _classesMap[_selectedClasse!] != '3eme' && _selectedSerie != null && selectedSerieCode == null) {
+    if (_selectedClasse != null &&
+        _classesMap[_selectedClasse!] != '3eme' &&
+        _selectedSerie != null &&
+        selectedSerieCode == null) {
+      print('DEBUG SIGNUP: Check failed - Invalid serie code for DB.');
       if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erreur: Code de série invalide pour la base de données.'), backgroundColor: Colors.red),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erreur: Code de série invalide pour la base de données.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
       return;
     }
+
+    // OUR EXPLICIT CHECK
+    if (selectedLevelCode != null &&
+        selectedLevelCode != '3eme' &&
+        selectedSerieCode == null) {
+      print(
+          'DEBUG SIGNUP: Explicit check FAILED - Level requires serie, but serie is null. Level: $selectedLevelCode');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Veuillez sélectionner une série pour la classe choisie.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    print('DEBUG SIGNUP: All pre-signup client-side checks passed.');
+    // ----- FIN DES VERIFICATIONS -----
 
     setState(() {
       _isLoading = true;
@@ -102,11 +139,19 @@ class _SignupPageState extends ConsumerState<SignupPage> {
       final Map<String, dynamic> userMetaData = {
         'first_name': _prenomController.text.trim(),
         'last_name': _nomController.text.trim(),
-        'full_name': '${_prenomController.text.trim()} ${_nomController.text.trim()}',
+        'full_name':
+        '${_prenomController.text.trim()} ${_nomController.text.trim()}',
         'student_level_code': selectedLevelCode,
-        'student_serie_code': (selectedLevelCode == '3eme') ? null : selectedSerieCode,
+        'student_serie_code':
+        (selectedLevelCode == '3eme') ? null : selectedSerieCode,
         'role': 'student',
       };
+
+      // DEBUG PRINT 2: Just before Supabase call
+      print(
+          'DEBUG SIGNUP: Attempting Supabase signUp with userMetaData: $userMetaData');
+      print(
+          'DEBUG SIGNUP: Values for metadata - student_level_code: ${userMetaData['student_level_code']}, student_serie_code: ${userMetaData['student_serie_code']}');
 
       final AuthResponse response = await _supabase.auth.signUp(
         email: _emailController.text.trim(),
@@ -119,36 +164,46 @@ class _SignupPageState extends ConsumerState<SignupPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                response.session == null && response.user!.emailConfirmedAt == null
-                  ? 'Compte créé ! Veuillez vérifier votre e-mail pour le code de vérification.' // Message ajusté pour OTP
-                  : 'Compte créé avec succès !', // Moins probable si la vérification est active
+                response.session == null &&
+                    response.user!.emailConfirmedAt == null
+                    ? 'Compte créé ! Veuillez vérifier votre e-mail pour le code de vérification.'
+                    : 'Compte créé avec succès !',
               ),
               backgroundColor: Colors.green,
             ),
           );
-          if (response.session == null && response.user!.emailConfirmedAt == null) {
-             // Passer l'email est optionnel mais peut être utile pour la page de vérification
-             context.go('/auth/verification', extra: {'email': _emailController.text.trim()});
+          if (response.session == null &&
+              response.user!.emailConfirmedAt == null) {
+            context.go('/auth/verification',
+                extra: {'email': _emailController.text.trim()});
           } else {
-            // Si pour une raison l'email est déjà confirmé (ex: vérification désactivée par admin)
-            context.go('/student/profile'); // Ou /auth/login
+            context.go('/student/profile');
           }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Échec de l\'inscription. Utilisateur non retourné.'), backgroundColor: Colors.red),
+            const SnackBar(
+              content: Text('Échec de l\'inscription. Utilisateur non retourné.'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }
     } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur d\'authentification: ${e.message}'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Erreur d\'authentification: ${e.message}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Une erreur inattendue est survenue: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Une erreur inattendue est survenue: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -170,12 +225,24 @@ class _SignupPageState extends ConsumerState<SignupPage> {
       labelText: labelText,
       hintText: hintText,
       prefixIcon: Icon(prefixIconData, color: Colors.grey[600]),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
       filled: true,
       fillColor: Colors.white,
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.blueAccent, width: 2)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.red, width: 1)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.red, width: 2)),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.red, width: 1),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.red, width: 2),
+      ),
       suffixIcon: suffixIcon,
     );
   }
@@ -188,10 +255,17 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     required FormFieldValidator<String> validator,
   }) {
     return DropdownButtonFormField<String>(
-      decoration: _buildInputDecoration(labelText: labelText, hintText: 'Choisir', prefixIconData: Icons.school_outlined),
+      decoration: _buildInputDecoration(
+        labelText: labelText,
+        hintText: 'Choisir',
+        prefixIconData: Icons.school_outlined,
+      ),
       value: currentValue,
       items: items.map((String value) {
-        return DropdownMenuItem<String>(value: value, child: Text(value, overflow: TextOverflow.ellipsis));
+        return DropdownMenuItem<String>(
+          value: value,
+          child: Text(value, overflow: TextOverflow.ellipsis),
+        );
       }).toList(),
       onChanged: onChanged,
       validator: validator,
@@ -211,20 +285,44 @@ class _SignupPageState extends ConsumerState<SignupPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('Créer un compte', style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                const Text(
+                  'Créer un compte',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blueAccent,
+                  ),
+                ),
                 _gapH10,
-                Text('Remplissez les informations', style: TextStyle(fontSize: 16, color: Colors.grey[700])),
+                Text(
+                  'Remplissez les informations',
+                  style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                ),
                 _gapH30,
                 TextFormField(
                   controller: _nomController,
-                  decoration: _buildInputDecoration(labelText: 'Nom', hintText: 'Entrez votre nom', prefixIconData: Icons.person_outline),
-                  validator: (value) => (value == null || value.isEmpty) ? 'Veuillez entrer votre nom' : null,
+                  decoration: _buildInputDecoration(
+                    labelText: 'Nom',
+                    hintText: 'Entrez votre nom',
+                    prefixIconData: Icons.person_outline,
+                  ),
+                  validator: (value) =>
+                  (value == null || value.isEmpty)
+                      ? 'Veuillez entrer votre nom'
+                      : null,
                 ),
                 _gapH20,
                 TextFormField(
                   controller: _prenomController,
-                  decoration: _buildInputDecoration(labelText: 'Prénom', hintText: 'Entrez votre prénom', prefixIconData: Icons.person_outline),
-                  validator: (value) => (value == null || value.isEmpty) ? 'Veuillez entrer votre prénom' : null,
+                  decoration: _buildInputDecoration(
+                    labelText: 'Prénom',
+                    hintText: 'Entrez votre prénom',
+                    prefixIconData: Icons.person_outline,
+                  ),
+                  validator: (value) =>
+                  (value == null || value.isEmpty)
+                      ? 'Veuillez entrer votre prénom'
+                      : null,
                 ),
                 _gapH20,
                 Row(
@@ -237,27 +335,33 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                         onChanged: (newValue) {
                           setState(() {
                             _selectedClasse = newValue;
-                            if (newValue != null && _classesMap[newValue] == '3eme') { 
+                            if (newValue != null &&
+                                _classesMap[newValue] == '3eme') {
                               _selectedSerie = null;
                             }
                           });
                         },
-                        validator: (value) => value == null ? 'Choisissez une classe' : null,
+                        validator: (value) =>
+                        value == null ? 'Choisissez une classe' : null,
                       ),
                     ),
                     _gapW16,
-                    if (_selectedClasse != null && _classesMap[_selectedClasse!] != '3eme') 
+                    if (_selectedClasse != null &&
+                        _classesMap[_selectedClasse!] != '3eme')
                       Expanded(
                         child: _buildDropdownField(
                           labelText: 'Série',
                           currentValue: _selectedSerie,
-                          items: _displaySeries, 
+                          items: _displaySeries,
                           onChanged: (newValue) {
                             setState(() {
-                              _selectedSerie = newValue; 
+                              _selectedSerie = newValue;
                             });
                           },
-                          validator: (value) => (_selectedClasse != null && _classesMap[_selectedClasse!] != '3eme' && value == null)
+                          validator: (value) =>
+                          (_selectedClasse != null &&
+                              _classesMap[_selectedClasse!] != '3eme' &&
+                              value == null)
                               ? 'Choisissez une série'
                               : null,
                         ),
@@ -269,11 +373,20 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                 _gapH20,
                 TextFormField(
                   controller: _emailController,
-                  decoration: _buildInputDecoration(labelText: 'Email', hintText: 'Entrez votre adresse email', prefixIconData: Icons.email_outlined),
+                  decoration: _buildInputDecoration(
+                    labelText: 'Email',
+                    hintText: 'Entrez votre adresse email',
+                    prefixIconData: Icons.email_outlined,
+                  ),
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
-                    if (value == null || value.isEmpty) return 'Veuillez entrer votre email';
-                    if (!RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(value)) return 'Veuillez entrer un email valide';
+                    if (value == null || value.isEmpty) {
+                      return 'Veuillez entrer votre email';
+                    }
+                    if (!RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
+                        .hasMatch(value)) {
+                      return 'Veuillez entrer un email valide';
+                    }
                     return null;
                   },
                 ),
@@ -286,13 +399,23 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     hintText: 'Créez un mot de passe',
                     prefixIconData: Icons.lock_outline_rounded,
                     suffixIcon: IconButton(
-                      icon: Icon(_isPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.grey[600]),
-                      onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                      icon: Icon(
+                        _isPasswordVisible
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: Colors.grey[600],
+                      ),
+                      onPressed: () => setState(
+                              () => _isPasswordVisible = !_isPasswordVisible),
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) return 'Veuillez entrer un mot de passe';
-                    if (value.length < 6) return 'Le mot de passe doit contenir au moins 6 caractères';
+                    if (value == null || value.isEmpty) {
+                      return 'Veuillez entrer un mot de passe';
+                    }
+                    if (value.length < 6) {
+                      return 'Le mot de passe doit contenir au moins 6 caractères';
+                    }
                     return null;
                   },
                 ),
@@ -305,13 +428,23 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     hintText: 'Retapez votre mot de passe',
                     prefixIconData: Icons.lock_outline_rounded,
                     suffixIcon: IconButton(
-                      icon: Icon(_isConfirmPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.grey[600]),
-                      onPressed: () => setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
+                      icon: Icon(
+                        _isConfirmPasswordVisible
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: Colors.grey[600],
+                      ),
+                      onPressed: () => setState(() =>
+                      _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) return 'Veuillez confirmer votre mot de passe';
-                    if (value != _passwordController.text) return 'Les mots de passe ne correspondent pas';
+                    if (value == null || value.isEmpty) {
+                      return 'Veuillez confirmer votre mot de passe';
+                    }
+                    if (value != _passwordController.text) {
+                      return 'Les mots de passe ne correspondent pas';
+                    }
                     return null;
                   },
                 ),
@@ -322,23 +455,48 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
                     elevation: 7,
                     minimumSize: const Size(double.infinity, 50),
                   ),
                   child: _isLoading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
-                      : const Text("S'inscrire", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                      AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                      : const Text(
+                    "S'inscrire",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
                 _gapH25,
                 GestureDetector(
                   onTap: () => context.go('/auth/login'),
                   child: Text.rich(
                     TextSpan(
-                      text: 'Déjà inscrit ? ', 
+                      text: 'Déjà inscrit ? ',
                       style: TextStyle(fontSize: 16, color: Colors.grey[700]),
                       children: const <TextSpan>[
-                        TextSpan(text: 'Se connecter', style: TextStyle(color: Colors.blue, decoration: TextDecoration.underline, decorationColor: Colors.blue, fontSize: 16, fontWeight: FontWeight.bold)),
+                        TextSpan(
+                          text: 'Se connecter',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Colors.blue,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ),

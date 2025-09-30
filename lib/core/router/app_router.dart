@@ -14,6 +14,8 @@ import '../../pages/auth/verification_page.dart';
 
 // Pages Étudiant
 import '../../pages/student/cours_page.dart';
+import '../../pages/student/cours/matiere_detail_page.dart'; // Added import
+import '../../models/matiere_model.dart'; // Added import
 import '../../pages/student/epreuves_page.dart';
 import '../../pages/student/quiz_page.dart';
 import '../../pages/student/statistiques_page.dart';
@@ -65,7 +67,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/staff-login', // MODIFIED: Start with Staff Login page
+    initialLocation: '/get-started', // MODIFIED: Start with Staff Login page
     debugLogDiagnostics: true,
     refreshListenable: authListenable,
 
@@ -86,30 +88,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final bool isOnVerificationPath = currentLocation == verificationPath;
 
       if (!isLoggedIn) {
+        // Si l'utilisateur n'est pas connecté et n'est pas sur une page d'authentification publique
+        // ou de vérification, le laisser continuer si c'est /get-started, sinon rediriger vers /get-started.
         if (!isOnPublicAuthPath && !isOnVerificationPath) {
-          // Si l'utilisateur n'est pas connecté et n'est pas sur une page d'authentification publique
-          // ou de vérification, le rediriger vers la page de connexion du staff par défaut.
-          // Si vous souhaitez une page de démarrage différente pour les utilisateurs non connectés (par exemple, '/get-started'),
-          // vous pouvez la spécifier ici.
-          return '/staff-login'; 
+          return '/get-started'; 
         }
       } else {
         // Utilisateur connecté
-        if (isOnPublicAuthPath) {
-          // Si l'utilisateur connecté essaie d'accéder à une page d'authentification,
+        if (currentLocation == '/get-started' || currentLocation == '/auth/login' || currentLocation == '/auth/signup') {
+          // Si l'utilisateur connecté essaie d'accéder à get-started, login ou signup,
           // le rediriger vers son tableau de bord respectif.
           if (userRole == 'admin') return '/admin/dashboard';
           if (userRole == 'teacher') return '/teacher/dashboard';
           if (userRole == 'student') return '/cours';
           // Fallback si le rôle est inconnu mais connecté (ne devrait pas arriver)
-          return '/staff-login';
+          return '/get-started'; // Ou une page d'erreur/staff-login
         }
         // Redirections basées sur le rôle pour les accès non autorisés
-        if (userRole == 'student' && (currentLocation.startsWith('/admin') || currentLocation.startsWith('/teacher'))) {
-          return '/cours'; // Les étudiants ne peuvent pas accéder aux pages admin/teacher
+        if (userRole == 'student' && (currentLocation.startsWith('/admin') || currentLocation.startsWith('/teacher') || currentLocation == '/staff-login')) {
+          return '/cours'; // Les étudiants ne peuvent pas accéder aux pages admin/teacher/staff-login
         }
-        if (userRole == 'teacher' && currentLocation.startsWith('/admin')) {
-          return '/teacher/dashboard'; // Les enseignants ne peuvent pas accéder aux pages admin
+        if (userRole == 'teacher' && (currentLocation.startsWith('/admin') || currentLocation == '/staff-login')) {
+          return '/teacher/dashboard'; // Les enseignants ne peuvent pas accéder aux pages admin/staff-login
+        }
+        if (userRole == 'admin' && currentLocation == '/staff-login') {
+            return '/admin/dashboard'; // L'admin connecté ne devrait pas voir staff-login
         }
       }
       return null; // Pas de redirection nécessaire
@@ -128,7 +131,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/auth/signup',
         name: 'signup',
-        builder: (context, state) => const SignupPage(),
+        builder: (context, state) => SignupPage(),
       ),
       GoRoute(
         path: '/auth/verification',
@@ -180,18 +183,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'teacherDashboard',
         builder: (BuildContext context, GoRouterState state) => const TeacherDashboardPage(),
       ),
-      // GoRoute(
-      //   path: '/teacher/cours/manage-chapitres', 
-      //   name: 'teacherManageChapitres',
-      //   builder: (BuildContext context, GoRouterState state) => const ManageChapitresPage(onChapitreSelected: (chapitre) {
-      //     // Cette page est maintenant gérée par TeacherDashboardPage
-      //   }), 
-      // ),
       GoRoute(
         path: '/teacher/cours/chapitres/add', 
         name: 'teacherAddChapitre',
-        // Ce formulaire est maintenant affiché dans TeacherDashboardPage.
-        // Un accès direct ici ne fournira pas les callbacks onSubmitted/onCancel.
         builder: (context, state) => const EditChapitrePage(), 
       ),
       GoRoute(
@@ -203,38 +197,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           if (chapitreId == null) {
             return const Center(child: Text("ID de chapitre invalide"));
           }
-          // Ce formulaire est maintenant affiché dans TeacherDashboardPage.
-          // Un accès direct ici ne fournira pas les callbacks onSubmitted/onCancel.
           return EditChapitrePage(chapitreId: chapitreId);
         },
       ),
-      // GoRoute(
-      //   path: '/teacher/cours/manage-lecons', 
-      //   name: 'teacherManageLecons',
-      //    builder: (BuildContext context, GoRouterState state) {
-      //     // Cette page est maintenant gérée par TeacherDashboardPage
-      //     return Center(child: Text("Accès direct non configuré pour la gestion des leçons. Utilisez le dashboard."));
-      //   }
-      // ),
       GoRoute(
         path: '/teacher/cours/lecons/add', 
         name: 'teacherAddLecon',
-        // EditLeconPage a besoin de chapitreId et des callbacks, qui sont fournis par TeacherDashboardPage.
-        // Un accès direct n'est plus supporté de cette manière.
         builder: (context, state) => const Center(child: Text("Pour ajouter une leçon, passez par la gestion des cours du tableau de bord enseignant.")),
       ),
       GoRoute(
         path: '/teacher/cours/lecons/:leconId/edit',
         name: 'teacherEditLecon',
-        // EditLeconPage a besoin de chapitreId et des callbacks, qui sont fournis par TeacherDashboardPage.
-        // Un accès direct n'est plus supporté de cette manière.
         builder: (context, state) {
-          // final leconIdString = state.pathParameters['leconId'];
-          // final leconId = leconIdString != null ? int.tryParse(leconIdString) : null;
-          // if (leconId == null) {
-          //   return const Center(child: Text("ID de leçon invalide"));
-          // }
-          // Il manque chapitreId et les callbacks ici.
           return const Center(child: Text("Pour modifier une leçon, passez par la gestion des cours du tableau de bord enseignant."));
         },
       ),
@@ -261,6 +235,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Student Routes
       GoRoute(path: '/cours', name: 'cours', builder: (context, state) => const CoursPage()),
+      GoRoute(
+        path: '/student/cours/matiere/:matiereId',
+        name: 'studentMatiereDetail',
+        builder: (context, state) {
+          final matiere = state.extra as MatiereModel?;
+          if (matiere == null) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Erreur: Détails de la matière non fournis.'),
+              ),
+            );
+          }
+          return MatiereDetailPage(matiere: matiere);
+        },
+      ),
       GoRoute(path: '/epreuves', name: 'epreuves', builder: (context, state) => const EpreuvesPage()),
       GoRoute(path: '/quiz',name: 'quiz',builder: (context, state) => const QuizPage()),
       GoRoute(path: '/statistiques',name: 'statistiques',builder: (context, state) => const StatistiquesPage()),
@@ -324,7 +313,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           if (state.extra is Map<String, dynamic>) { 
             return QuizResultsPage(results: state.extra as Map<String, dynamic>);
-          }          
+          }
           return const Scaffold(body: Center(child: Text("Résultats du quiz non fournis correctement.")));
         },
       ),

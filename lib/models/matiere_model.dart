@@ -23,32 +23,29 @@ class MatiereModel {
 
   factory MatiereModel.fromMap(Map<String, dynamic> map) {
     return MatiereModel(
-      id: map['id'] as int,
-      nom: map['nom'] as String,
-      code: map['code'] as String,
+      id: map['id'] as int? ?? 0, // Fournir une valeur par défaut ou gérer l'erreur
+      nom: map['nom'] as String? ?? 'Nom indisponible', // Fournir une valeur par défaut
+      code: map['code'] as String? ?? 'Code indisponible', // Fournir une valeur par défaut
       description: map['description'] as String?,
       couleur: map['couleur'] as String?,
       icone: map['icone'] as String?,
-      type: map['type'] as String,
-      createdAt: map['created_at'] == null ? null : DateTime.tryParse(map['created_at'] as String),
-      updatedAt: map['updated_at'] == null ? null : DateTime.tryParse(map['updated_at'] as String),
+      type: map['type'] as String? ?? 'Type indisponible', // Fournir une valeur par défaut
+      createdAt: map['created_at'] == null ? null : DateTime.tryParse(map['created_at'] as String? ?? ''),
+      updatedAt: map['updated_at'] == null ? null : DateTime.tryParse(map['updated_at'] as String? ?? ''),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      // ID is typically used in .eq() for updates, not in the body
       'nom': nom,
       'code': code,
       'description': description,
       'couleur': couleur,
       'icone': icone,
       'type': type,
-      // createdAt and updatedAt are usually handled by DB defaults/triggers
     };
   }
 
-  // Used for creating a new record, Supabase handles id, created_at, updated_at
   Map<String, dynamic> toMapForInsert() {
     return {
       'nom': nom,
@@ -60,16 +57,14 @@ class MatiereModel {
     };
   }
 
-  // Used for updating an existing record
   Map<String, dynamic> toMapForUpdate() {
     return {
       'nom': nom,
-      'code': code, // Be cautious if allowing code (UNIQUE) to be updated
+      'code': code, 
       'description': description,
       'couleur': couleur,
       'icone': icone,
       'type': type,
-      // 'updated_at': DateTime.now().toIso8601String(), // Optionally force update timestamp
     };
   }
 

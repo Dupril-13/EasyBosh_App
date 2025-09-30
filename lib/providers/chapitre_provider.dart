@@ -1,59 +1,107 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:easybosh_v2/models/chapitre_model.dart';
-import 'package:easybosh_v2/main.dart'; // Pour supabaseClientProvider
+import '../models/chapitre_model.dart';
+import 'package:flutter/foundation.dart'; // Import pour debugPrint
 
+// 1. Définition de l'état du provider
 class ChapitreState {
   final List<ChapitreModel> chapitres;
-  final ChapitreModel? chapitrePourEdition;
   final bool isLoading;
   final String? errorMessage;
-  // Pour se souvenir des derniers filtres utilisés pour fetchChapitres
-  final int? currentMatiereId;
-  final String? currentNiveauCode;
-  final String? currentSerieCode;
+  final ChapitreModel? chapitrePourEdition;
 
   ChapitreState({
     this.chapitres = const [],
-    this.chapitrePourEdition,
     this.isLoading = false,
     this.errorMessage,
-    this.currentMatiereId,
-    this.currentNiveauCode,
-    this.currentSerieCode,
+    this.chapitrePourEdition,
   });
 
   ChapitreState copyWith({
     List<ChapitreModel>? chapitres,
-    ChapitreModel? chapitrePourEdition,
     bool? isLoading,
     String? errorMessage,
-    bool? resetErrorMessage = false,
-    bool setToNullChapitrePourEdition = false,
-    int? currentMatiereId,
-    String? currentNiveauCode,
-    String? currentSerieCode,
-    bool resetCurrentFilters = false,
+    ChapitreModel? chapitrePourEdition,
+    bool clearChapitrePourEdition = false,
   }) {
     return ChapitreState(
       chapitres: chapitres ?? this.chapitres,
-      chapitrePourEdition: setToNullChapitrePourEdition ? null : (chapitrePourEdition ?? this.chapitrePourEdition),
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: resetErrorMessage == true ? null : errorMessage ?? this.errorMessage,
-      currentMatiereId: resetCurrentFilters ? null : currentMatiereId ?? this.currentMatiereId,
-      currentNiveauCode: resetCurrentFilters ? null : currentNiveauCode ?? this.currentNiveauCode,
-      currentSerieCode: resetCurrentFilters ? null : currentSerieCode ?? this.currentSerieCode,
+      errorMessage: errorMessage ?? this.errorMessage,
+      chapitrePourEdition: clearChapitrePourEdition ? null : chapitrePourEdition ?? this.chapitrePourEdition,
     );
   }
 }
 
+// 2. Création du Notifier
 class ChapitreNotifier extends StateNotifier<ChapitreState> {
   final SupabaseClient _supabaseClient;
 
   ChapitreNotifier(this._supabaseClient) : super(ChapitreState());
 
+  Future<void> fetchChapitres(int matiereId, {String? niveauCode, String? serieCode}) async {
+    debugPrint("[ChapitreProvider] Fetching chapitres for matiereId: $matiereId, niveauCode: $niveauCode, serieCode: $serieCode");
+    state = state.copyWith(isLoading: true, errorMessage: null, clearChapitrePourEdition: true, chapitres: []);
+    
+    try {
+      // Utiliser PostgrestFilterBuilder pour construire la requête de filtre
+      PostgrestFilterBuilder<List<Map<String, dynamic>>> queryBuilder = _supabaseClient
+          .from('chapitres')
+          .select()
+          .eq('matiere_id', matiereId)
+          .eq('actif', true);
+
+      if (niveauCode != null && niveauCode.isNotEmpty) {
+        queryBuilder = queryBuilder.eq('niveau_code', niveauCode);
+      } else {
+        debugPrint("[ChapitreProvider] niveauCode non fourni, ne filtre pas par niveau.");
+      }
+
+      if (niveauCode == '3eme') {
+         if (serieCode == null || serieCode.isEmpty || serieCode == 'TC') {
+            queryBuilder = queryBuilder.or('serie_code.is.null,serie_code.eq.TC');
+         } else {
+            queryBuilder = queryBuilder.eq('serie_code', serieCode);
+         }
+      } else if (serieCode != null && serieCode.isNotEmpty) {
+         queryBuilder = queryBuilder.eq('serie_code', serieCode);
+      } else if (niveauCode != null && niveauCode.isNotEmpty && niveauCode != '3eme'){
+         debugPrint("[ChapitreProvider] serieCode non fourni pour niveau $niveauCode (non-3eme). Les résultats pourraient être vides ou incomplets.");
+      }
+
+      // Appliquer .order() à la fin et exécuter la requête
+      final response = await queryBuilder.order('ordre', ascending: true);
+
+      final List<dynamic> data = response; // response est déjà List<Map<String, dynamic>>
+      final chapitres = data.map((item) => ChapitreModel.fromMap(item as Map<String, dynamic>)).toList();
+      state = state.copyWith(chapitres: chapitres, isLoading: false);
+      debugPrint("[ChapitreProvider] Fetched ${chapitres.length} chapitres.");
+      
+    } catch (e) {
+      debugPrint('[ChapitreProvider] Exception fetching chapitres: $e');
+      String errorMessage = 'Une erreur est survenue lors de la récupération des chapitres.';
+      if (e is PostgrestException) {
+        errorMessage = 'Erreur Supabase (fetchChapitres): ${e.message} (code: ${e.code})';
+      }
+      state = state.copyWith(isLoading: false, errorMessage: errorMessage, chapitres: []);
+    }
+  }
+
+  void clearDataAndError() {
+    state = ChapitreState(); 
+  }
+
+  void clearChapitres() { 
+    state = state.copyWith(chapitres: [], errorMessage: null, isLoading: false, clearChapitrePourEdition: true);
+  }
+
+   void setExternalError(String message) {
+    state = state.copyWith(isLoading: false, errorMessage: message, chapitres: []);
+  }
+
   Future<void> chargerChapitrePourEdition(int chapitreId) async {
-    state = state.copyWith(isLoading: true, resetErrorMessage: true, setToNullChapitrePourEdition: true);
+    debugPrint("[ChapitreProvider] Chargement du chapitre $chapitreId pour édition.");
+    state = state.copyWith(isLoading: true, errorMessage: null, clearChapitrePourEdition: true);
     try {
       final response = await _supabaseClient
           .from('chapitres')
@@ -61,262 +109,136 @@ class ChapitreNotifier extends StateNotifier<ChapitreState> {
           .eq('id', chapitreId)
           .single(); 
 
-      state = state.copyWith(chapitrePourEdition: ChapitreModel.fromMap(response as Map<String, dynamic>), isLoading: false);
-    } on PostgrestException catch (e) {
-      print("Erreur Postgrest chargerChapitrePourEdition: ${e.message}");
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur DB (chargement chapitre): ${e.message}");
+      final chapitre = ChapitreModel.fromMap(response as Map<String, dynamic>); 
+      state = state.copyWith(chapitrePourEdition: chapitre, isLoading: false);
+      debugPrint("[ChapitreProvider] Chapitre chargé pour édition: ${chapitre.nom}");
     } catch (e) {
-      print("Erreur Générale chargerChapitrePourEdition: $e");
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur inattendue (chargement chapitre): $e");
-    }
-  }
-
-  // Fetch chapitres REQUIERT matiereId, niveauCode, et serieCode
-  Future<void> fetchChapitres({
-    required int matiereId, 
-    required String niveauCode, 
-    required String serieCode
-  }) async {
-    state = state.copyWith(
-      isLoading: true, 
-      resetErrorMessage: true, 
-      // Stocker les filtres actuels pour les opérations CRUD futures
-      currentMatiereId: matiereId,
-      currentNiveauCode: niveauCode,
-      currentSerieCode: serieCode
-    );
-    try {
-      final response = await _supabaseClient
-          .from('chapitres')
-          .select()
-          .eq('matiere_id', matiereId)
-          .eq('niveau_code', niveauCode)
-          .eq('serie_code', serieCode)
-          .order('ordre', ascending: true);
-
-      final List<ChapitreModel> fetchedChapitres = (response as List)
-          .map((data) => ChapitreModel.fromMap(data as Map<String, dynamic>))
-          .toList();
-      state = state.copyWith(isLoading: false, chapitres: fetchedChapitres);
-    } on PostgrestException catch (e) {
-      print("Erreur Postgrest fetchChapitres: ${e.message}");
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur DB (liste chapitres): ${e.message}");
-    } catch (e) {
-      print("Erreur Générale fetchChapitres: $e");
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur inattendue (liste chapitres): $e");
-    }
-  }
-
-  // Le ChapitreModel doit maintenant avoir matiereId, niveauCode, et serieCode renseignés
-  Future<bool> addChapitre(ChapitreModel chapitreAAjouter) async {
-    if (chapitreAAjouter.matiereId == null || chapitreAAjouter.niveauCode == null || chapitreAAjouter.serieCode == null) {
-      state = state.copyWith(errorMessage: "Matière, Niveau et Série sont requis pour ajouter un chapitre.");
-      return false;
-    }
-    state = state.copyWith(isLoading: true, resetErrorMessage: true);
-    try {
-      int nouvelOrdre = 1;
-      final existingChapitresResponse = await _supabaseClient
-          .from('chapitres')
-          .select('ordre')
-          .eq('matiere_id', chapitreAAjouter.matiereId!)
-          .eq('niveau_code', chapitreAAjouter.niveauCode!)
-          .eq('serie_code', chapitreAAjouter.serieCode!)
-          .order('ordre', ascending: false)
-          .limit(1);
-
-      final List<dynamic> existingChapitresData = existingChapitresResponse as List<dynamic>; 
-      if (existingChapitresData.isNotEmpty) {
-        final maxOrdre = existingChapitresData.first['ordre'] as int? ?? 0;
-        nouvelOrdre = maxOrdre + 1;
+      debugPrint("[ChapitreProvider] Erreur lors du chargement du chapitre $chapitreId: $e");
+      String errorMessage = 'Impossible de charger le chapitre.';
+      if (e is PostgrestException) {
+        errorMessage = 'Erreur Supabase (chargerChapitre): ${e.message} (code: ${e.code})';
       }
+      state = state.copyWith(isLoading: false, errorMessage: errorMessage);
+    }
+  }
 
-      final chapitreData = chapitreAAjouter.copyWith(ordre: nouvelOrdre).toMap();
+  Future<bool> addChapitre(ChapitreModel chapitreDetails) async {
+    debugPrint("[ChapitreProvider] Ajout du chapitre: ${chapitreDetails.nom} pour matiereId ${chapitreDetails.matiereId}, niveau ${chapitreDetails.niveauCode}, serie ${chapitreDetails.serieCode}");
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final mapData = chapitreDetails.toMap();
       
-      final currentUser = _supabaseClient.auth.currentUser;
-      if (currentUser != null) {
-        chapitreData['created_by'] = currentUser.id;
+      if (mapData['matiere_id'] == null) {
+         debugPrint("[ChapitreProvider] Erreur: matiere_id est manquant.");
+         state = state.copyWith(isLoading: false, errorMessage: "L\'ID de la matière est requis.");
+         return false;
       }
-      // created_at et updated_at sont gérés par la DB
-
-      final response = await _supabaseClient
-          .from('chapitres')
-          .insert(chapitreData)
-          .select();
-
-      final List<ChapitreModel> newChapitresList = (response as List)
-        .map((data) => ChapitreModel.fromMap(data as Map<String, dynamic>))
-        .toList();
-
-      if (newChapitresList.isNotEmpty) {
-        await fetchChapitres(
-          matiereId: chapitreAAjouter.matiereId!,
-          niveauCode: chapitreAAjouter.niveauCode!,
-          serieCode: chapitreAAjouter.serieCode!
-        );
-        return true;
-      } else {
-         throw Exception("N'a pas pu ajouter le chapitre et récupérer la confirmation.");
+      if (mapData['niveau_code'] == null || (mapData['niveau_code'] as String).isEmpty) {
+         debugPrint("[ChapitreProvider] Erreur: niveau_code est manquant.");
+         state = state.copyWith(isLoading: false, errorMessage: "Le code du niveau est requis.");
+         return false;
       }
-    } on PostgrestException catch (e) {
-      print("Erreur Postgrest addChapitre: ${e.message}");
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur DB (ajout chapitre): ${e.message}");
-      return false;
-    } catch (e) {
-      print("Erreur Générale addChapitre: $e");
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur inattendue (ajout chapitre): $e");
-      return false;
-    }
-  }
-
-  Future<bool> updateChapitre(ChapitreModel chapitreAMettreAJour) async {
-    if (chapitreAMettreAJour.matiereId == null || chapitreAMettreAJour.niveauCode == null || chapitreAMettreAJour.serieCode == null) {
-      state = state.copyWith(errorMessage: "Matière, Niveau et Série sont requis pour mettre à jour un chapitre.");
-      return false;
-    }
-    state = state.copyWith(isLoading: true, resetErrorMessage: true);
-    try {
-      final Map<String, dynamic> chapitreData = chapitreAMettreAJour.toMap();
-      chapitreData['updated_at'] = DateTime.now().toIso8601String(); // Forcer la maj de updated_at
-
-      final response = await _supabaseClient
-          .from('chapitres')
-          .update(chapitreData)
-          .eq('id', chapitreAMettreAJour.id)
-          .select();
-
-      final List<ChapitreModel> updatedChapitresList = (response as List)
-        .map((data) => ChapitreModel.fromMap(data as Map<String, dynamic>))
-        .toList();
-      
-      if (updatedChapitresList.isNotEmpty) {
-        state = state.copyWith(
-          isLoading: false,
-          chapitres: state.chapitres.map((ch) => ch.id == chapitreAMettreAJour.id ? updatedChapitresList.first : ch).toList()..sort((a, b) => a.ordre.compareTo(b.ordre)),
-          chapitrePourEdition: state.chapitrePourEdition?.id == chapitreAMettreAJour.id ? updatedChapitresList.first : state.chapitrePourEdition,
-        );
-        // Si l'update concerne le chapitre en cours d'édition, le mettre à jour aussi
-        // Le fetchChapitres ci-dessous le fera aussi mais c'est pour une réactivité immédiate de chapitrePourEdition
-        // await fetchChapitres(
-        //   matiereId: chapitreAMettreAJour.matiereId!,
-        //   niveauCode: chapitreAMettreAJour.niveauCode!,
-        //   serieCode: chapitreAMettreAJour.serieCode!
-        // );
-        return true;
-      } else {
-        await fetchChapitres( // Assurer la cohérence en cas d'échec de récupération
-          matiereId: chapitreAMettreAJour.matiereId!,
-          niveauCode: chapitreAMettreAJour.niveauCode!,
-          serieCode: chapitreAMettreAJour.serieCode!
-        );
-        state = state.copyWith(isLoading: false, errorMessage: "Chapitre mis à jour, mais n'a pas pu récupérer la confirmation. Liste rafraîchie.");
-        return false; 
+      if (mapData['niveau_code'] != '3eme' && (mapData['serie_code'] == null || (mapData['serie_code'] as String).isEmpty)) {
+         debugPrint("[ChapitreProvider] Erreur: serie_code est manquant pour niveau ${mapData['niveau_code']}.");
+         state = state.copyWith(isLoading: false, errorMessage: "Le code de la série est requis pour ce niveau.");
+         return false;
       }
-    } on PostgrestException catch (e) {
-      print("Erreur Postgrest updateChapitre: ${e.message}");
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur DB (maj chapitre): ${e.message}");
-      return false;
-    } catch (e) {
-      print("Erreur Générale updateChapitre: $e");
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur inattendue (maj chapitre): $e");
-      return false;
-    }
-  }
-
-  Future<void> updateChapitresOrder(List<ChapitreModel> chapitresReordonnes, {
-    required int matiereId, 
-    required String niveauCode, 
-    required String serieCode
-  }) async {
-    state = state.copyWith(isLoading: true, resetErrorMessage: true);
-    try {
-      for (int i = 0; i < chapitresReordonnes.length; i++) {
-        final chapitre = chapitresReordonnes[i];
-        await _supabaseClient
-            .from('chapitres')
-            .update({'ordre': i + 1}) 
-            .eq('id', chapitre.id);
-      }
-      await fetchChapitres(matiereId: matiereId, niveauCode: niveauCode, serieCode: serieCode);
-      state = state.copyWith(isLoading: false); // fetchChapitres met à jour l'état
-    } on PostgrestException catch (e) {
-      print("Erreur Postgrest updateChapitresOrder: ${e.message}");
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur DB (ordre chapitres): ${e.message}");
-      await fetchChapitres(matiereId: matiereId, niveauCode: niveauCode, serieCode: serieCode);
-    } catch (e) {
-      print("Erreur Générale updateChapitresOrder: $e");
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur inattendue (ordre chapitres): $e");
-      await fetchChapitres(matiereId: matiereId, niveauCode: niveauCode, serieCode: serieCode);
-    }
-  }
-
-  Future<bool> deleteChapitre(int chapitreId) async {
-    // Pour le re-fetch, nous avons besoin du contexte du chapitre supprimé
-    // Correction: chapitreASupprimer est maintenant ChapitreModel (non-nullable)
-    final ChapitreModel chapitreASupprimer = state.chapitres.firstWhere((ch) => ch.id == chapitreId, orElse: () => ChapitreModel(id:0, nom:'', ordre:0, createdAt: DateTime.now(), actif: false)); // Placeholder
-    
-    // Les champs matiereId, niveauCode, serieCode peuvent être null dans le placeholder,
-    // donc cette vérification reste pertinente.
-    if (chapitreASupprimer.id == 0 || chapitreASupprimer.matiereId == null || chapitreASupprimer.niveauCode == null || chapitreASupprimer.serieCode == null) {
-      // Si le chapitre n'a pas été trouvé (id == 0) ou si son contexte est incomplet,
-      // on ne peut pas re-fetcher son contexte spécifique.
-      print("Impossible de déterminer le contexte complet du chapitre ID: $chapitreId (ou chapitre non trouvé dans l'état) pour le re-fetch après suppression. Tentative avec les filtres de l'état actuel.");
-    }
-
-    state = state.copyWith(isLoading: true, resetErrorMessage: true);
-    try {
-      await _supabaseClient
-          .from('chapitres')
-          .delete()
-          .eq('id', chapitreId);
-      
-      if (state.chapitrePourEdition?.id == chapitreId) {
-        state = state.copyWith(setToNullChapitrePourEdition: true, isLoading: false); 
+      if (mapData['niveau_code'] == '3eme' && mapData['serie_code'] == 'TC') {
+        // Laisser TC tel quel
+      } else if (mapData['niveau_code'] == '3eme' && (mapData['serie_code'] == null || (mapData['serie_code'] as String).isEmpty)) {
+          mapData['serie_code'] = null; 
       }
 
-      // Essayer de re-fetcher avec le contexte du chapitre supprimé si disponible et valide
-      if (chapitreASupprimer.id != 0 && chapitreASupprimer.matiereId != null && chapitreASupprimer.niveauCode != null && chapitreASupprimer.serieCode != null) {
-         await fetchChapitres(
-          matiereId: chapitreASupprimer.matiereId!, // MODIFIÉ: ! ré-ajouté
-          niveauCode: chapitreASupprimer.niveauCode!, // MODIFIÉ: ! ré-ajouté
-          serieCode: chapitreASupprimer.serieCode!    // MODIFIÉ: ! ré-ajouté
-        );
-      } else if (state.currentMatiereId != null && state.currentNiveauCode != null && state.currentSerieCode != null) {
-        // Fallback: utiliser les derniers filtres connus de l'état du provider
-        await fetchChapitres(
-          matiereId: state.currentMatiereId!, // MODIFIÉ: ! ré-ajouté
-          niveauCode: state.currentNiveauCode!, // MODIFIÉ: ! ré-ajouté
-          serieCode: state.currentSerieCode! // MODIFIÉ: ! ré-ajouté
-        );
-      } else {
-        // Si aucun contexte n'est connu, vider la liste ou gérer autrement.
-        // S'assurer que isLoading est mis à jour si fetchChapitres n'est pas appelé.
-        state = state.copyWith(chapitres: [], isLoading: false);
+      await _supabaseClient.from('chapitres').insert(mapData);
+      debugPrint("[ChapitreProvider] Chapitre ${chapitreDetails.nom} ajouté avec succès.");
+      if (chapitreDetails.matiereId != null) {
+         await fetchChapitres(chapitreDetails.matiereId!, niveauCode: chapitreDetails.niveauCode, serieCode: chapitreDetails.serieCode);
       }
-      // Note: fetchChapitres met à jour isLoading. La branche `else` ci-dessus aussi.
+      // state = state.copyWith(isLoading: false); // fetchChapitres s'en occupe
       return true;
-    } on PostgrestException catch (e) {
-      print("Erreur Postgrest deleteChapitre: ${e.message}");
-      if (e.code == '23503') { 
-         state = state.copyWith(isLoading: false, errorMessage: "Impossible de supprimer: ce chapitre contient des leçons.");
-      } else {
-        state = state.copyWith(isLoading: false, errorMessage: "Erreur DB (sup chapitre): ${e.message}");
-      }
-      return false;
     } catch (e) {
-      print("Erreur Générale deleteChapitre: $e");
-      state = state.copyWith(isLoading: false, errorMessage: "Erreur inattendue (sup chapitre): $e");
+      debugPrint("[ChapitreProvider] Erreur lors de l'ajout du chapitre ${chapitreDetails.nom}: $e");
+      String errorMessage = 'Impossible d\'ajouter le chapitre.';
+      if (e is PostgrestException) {
+        errorMessage = 'Erreur Supabase (addChapitre): ${e.message} (code: ${e.code})';
+      }
+      state = state.copyWith(isLoading: false, errorMessage: errorMessage);
       return false;
     }
   }
 
-   // Appelé quand les filtres changent et qu'aucune matière/niveau/série n'est sélectionné (ou invalide)
-  void clearChapitres() {
-    state = state.copyWith(chapitres: [], isLoading: false, resetErrorMessage: true, resetCurrentFilters: true );
+  Future<bool> updateChapitre(ChapitreModel chapitreDetails) async {
+    debugPrint("[ChapitreProvider] Mise à jour du chapitre: ${chapitreDetails.id} - ${chapitreDetails.nom}");
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final mapData = chapitreDetails.toMap();
+      await _supabaseClient.from('chapitres').update(mapData).eq('id', chapitreDetails.id);
+      debugPrint("[ChapitreProvider] Chapitre ${chapitreDetails.nom} mis à jour avec succès.");
+      if (chapitreDetails.matiereId != null) {
+        await fetchChapitres(chapitreDetails.matiereId!, niveauCode: chapitreDetails.niveauCode, serieCode: chapitreDetails.serieCode);
+      }
+      state = state.copyWith(clearChapitrePourEdition: true); // isLoading est géré par fetchChapitres
+      return true;
+    } catch (e) {
+      debugPrint("[ChapitreProvider] Erreur lors de la maj du chapitre ${chapitreDetails.nom}: $e");
+      String errorMessage = 'Impossible de mettre à jour le chapitre.';
+      if (e is PostgrestException) {
+        errorMessage = 'Erreur Supabase (updateChapitre): ${e.message} (code: ${e.code})';
+      }
+      state = state.copyWith(isLoading: false, errorMessage: errorMessage);
+      return false;
+    }
+  }
+
+  Future<bool> deleteChapitre(int chapitreId, {int? currentMatiereId, String? currentNiveauCode, String? currentSerieCode}) async {
+    debugPrint("[ChapitreProvider] Suppression du chapitre $chapitreId.");
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      await _supabaseClient.from('chapitres').delete().eq('id', chapitreId);
+      debugPrint("[ChapitreProvider] Chapitre $chapitreId supprimé avec succès.");
+      if (currentMatiereId != null) {
+        await fetchChapitres(currentMatiereId, niveauCode: currentNiveauCode, serieCode: currentSerieCode);
+      }
+      // state = state.copyWith(isLoading: false); // fetchChapitres s'en occupe
+      return true;
+    } catch (e) {
+      debugPrint("[ChapitreProvider] Erreur lors de la suppression du chapitre $chapitreId: $e");
+      String errorMessage = 'Impossible de supprimer le chapitre.';
+      if (e is PostgrestException) {
+        errorMessage = 'Erreur Supabase (deleteChapitre): ${e.message} (code: ${e.code})';
+      }
+      state = state.copyWith(isLoading: false, errorMessage: errorMessage);
+      return false;
+    }
+  }
+
+  Future<void> updateChapitresOrder(List<ChapitreModel> chapitres, {int? matiereId, String? niveauCode, String? serieCode}) async {
+    debugPrint("[ChapitreProvider] Mise à jour de l'ordre des chapitres pour matiereId: $matiereId, niveau: $niveauCode, serie: $serieCode.");
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      for (var i = 0; i < chapitres.length; i++) {
+        final chapitre = chapitres[i];
+        await _supabaseClient.from('chapitres').update({'ordre': i}).eq('id', chapitre.id);
+      }
+      debugPrint("[ChapitreProvider] Ordre des chapitres mis à jour.");
+      if (matiereId != null) {
+        await fetchChapitres(matiereId, niveauCode: niveauCode, serieCode: serieCode);
+      }
+      // state = state.copyWith(isLoading: false); // fetchChapitres s'en occupe
+    } catch (e) {
+      debugPrint("[ChapitreProvider] Erreur lors de la mise à jour de l'ordre des chapitres: $e");
+      String errorMessage = 'Impossible de mettre à jour l\'ordre des chapitres.';
+      if (e is PostgrestException) {
+        errorMessage = 'Erreur Supabase (updateChapitresOrder): ${e.message} (code: ${e.code})';
+      }
+      state = state.copyWith(isLoading: false, errorMessage: errorMessage);
+    }
   }
 }
 
+final supabaseClientProvider = Provider((ref) => Supabase.instance.client);
+
 final chapitreProvider = StateNotifierProvider<ChapitreNotifier, ChapitreState>((ref) {
-  final supabaseClient = ref.watch(supabaseClientProvider);
-  return ChapitreNotifier(supabaseClient);
+  final client = ref.watch(supabaseClientProvider);
+  return ChapitreNotifier(client);
 });

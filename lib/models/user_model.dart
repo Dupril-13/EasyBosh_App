@@ -34,25 +34,25 @@ class UserModel extends Equatable {
 
   /// Getters utiles
   String get nomComplet {
-    if (nom != null && prenom != null) {
+    if (prenom != null && nom != null && prenom!.isNotEmpty && nom!.isNotEmpty) {
       return '$prenom $nom';
-    } else if (nom != null) {
-      return nom!;
-    } else if (prenom != null) {
+    } else if (prenom != null && prenom!.isNotEmpty) {
       return prenom!;
+    } else if (nom != null && nom!.isNotEmpty) {
+      return nom!;
     }
     return email.split('@').first;
   }
 
   String get initiales {
-    if (nom != null && prenom != null) {
+    if (prenom != null && prenom!.isNotEmpty && nom != null && nom!.isNotEmpty) {
       return '${prenom!.substring(0, 1)}${nom!.substring(0, 1)}'.toUpperCase();
-    } else if (nom != null) {
-      return nom!.substring(0, 1).toUpperCase();
-    } else if (prenom != null) {
+    } else if (prenom != null && prenom!.isNotEmpty) {
       return prenom!.substring(0, 1).toUpperCase();
-    }
-    return email.substring(0, 1).toUpperCase();
+    } else if (nom != null && nom!.isNotEmpty) {
+      return nom!.substring(0, 1).toUpperCase();
+    }    
+    return email.isNotEmpty ? email.substring(0, 1).toUpperCase() : 'U';
   }
 
   bool get isEtudiant => role == 'etudiant';
@@ -63,60 +63,80 @@ class UserModel extends Equatable {
   /// Vérification de profil complet pour les étudiants
   bool get isProfileComplete {
     if (isEtudiant) {
-      return nom != null &&
-          prenom != null &&
-          niveauCode != null &&
-          serieCode != null;
+      bool hasNiveau = niveauCode != null && niveauCode!.isNotEmpty;
+      // Pour 3eme, serieCode peut être vide ou null
+      bool hasSerie = niveauCode == '3eme' || (serieCode != null && serieCode!.isNotEmpty);
+      return nom != null && nom!.isNotEmpty &&
+          prenom != null && prenom!.isNotEmpty &&
+          hasNiveau &&
+          hasSerie;
     }
-    return nom != null && prenom != null;
+    return nom != null && nom!.isNotEmpty && prenom != null && prenom!.isNotEmpty;
   }
 
   /// Factory depuis Map (pour Supabase)
-  factory UserModel.fromMap(Map<String, dynamic> map) {
+  factory UserModel.fromMap(Map<String, dynamic> map, {required String emailFromSession, required bool emailVerifiedFromSession}) {
     return UserModel(
-      uid: map['uid'] as String,
-      email: map['email'] as String,
-      role: map['role'] as String,
-      nom: map['nom'] as String?,
-      prenom: map['prenom'] as String?,
-      niveauCode: map['niveau_code'] as String?,
-      serieCode: map['serie_code'] as String?,
-      telephone: map['telephone'] as String?,
-      dateNaissance: map['date_naissance'] != null
-          ? DateTime.parse(map['date_naissance'] as String)
+      uid: map['id'] as String, // Clé de 'profiles'
+      email: emailFromSession,    // Fourni depuis la session
+      role: map['role'] as String? ?? 'student', 
+      nom: map['last_name'] as String?,
+      prenom: map['first_name'] as String?,
+      niveauCode: map['student_level_code'] as String?,
+      serieCode: map['student_serie_code'] as String?,
+      telephone: map['phone_number'] as String?,
+      dateNaissance: map['date_of_birth'] != null
+          ? DateTime.tryParse(map['date_of_birth'] as String)
           : null,
-      emailVerified: map['email_verified'] as bool? ?? false,
-      actif: map['actif'] as bool? ?? true,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
+      emailVerified: emailVerifiedFromSession,
+      actif: map['is_active'] as bool? ?? true,
+      createdAt: map['created_at'] != null 
+          ? DateTime.parse(map['created_at'] as String) 
+          : (map['updated_at'] != null 
+              ? DateTime.parse(map['updated_at'] as String) 
+              : DateTime.now()), // Fallback si created_at et updated_at sont nulls
+      updatedAt: map['updated_at'] != null 
+          ? DateTime.parse(map['updated_at'] as String) 
+          : DateTime.now(), // Fallback pour updatedAt
     );
   }
 
-  /// Conversion vers Map (pour Supabase)
-  Map<String, dynamic> toMap() {
+  Map<String, dynamic> toMapForProfiles() { 
     return {
-      'uid': uid,
-      'email': email,
+      'id': uid,
       'role': role,
-      'nom': nom,
-      'prenom': prenom,
-      'niveau_code': niveauCode,
-      'serie_code': serieCode,
-      'telephone': telephone,
-      'date_naissance': dateNaissance?.toIso8601String().split('T').first,
-      'email_verified': emailVerified,
-      'actif': actif,
-      'created_at': createdAt.toIso8601String(),
+      'last_name': nom,
+      'first_name': prenom,
+      'full_name': (prenom != null && nom != null && prenom!.isNotEmpty && nom!.isNotEmpty) ? '$prenom $nom' : null,
+      'student_level_code': niveauCode,
+      'student_serie_code': serieCode,
+      'phone_number': telephone,
+      'date_of_birth': dateNaissance?.toIso8601String().split('T').first,
+      'is_active': actif,
       'updated_at': updatedAt.toIso8601String(),
+      // created_at est géré par la DB ou n'est pas mis à jour par le client
     };
   }
 
-  /// Conversion vers Map pour insertion (sans uid, created_at, updated_at)
-  Map<String, dynamic> toInsertMap() {
-    final map = toMap();
-    map.remove('created_at');
-    map.remove('updated_at');
-    return map;
+  /// Conversion vers Map (pour Supabase - utilisé par AuthNotifier lors de l'inscription)
+  Map<String, dynamic> toMap() {
+    return {
+      // Cette map doit correspondre aux attentes de AuthNotifier pour l'insertion
+      // Elle devrait idéalement utiliser les noms de colonnes de la table 'profiles'
+      'id': uid, 
+      'role': role,
+      'last_name': nom,
+      'first_name': prenom,
+      // 'full_name' est souvent calculé ou géré par la DB, ou construit comme ci-dessus
+      'student_level_code': niveauCode,
+      'student_serie_code': serieCode,
+      'phone_number': telephone,
+      'date_of_birth': dateNaissance?.toIso8601String().split('T').first,
+      'is_active': actif,
+      'updated_at': updatedAt.toIso8601String(),
+      'created_at': createdAt.toIso8601String(), // Inclus pour la cohérence si nécessaire ailleurs
+      // L'email et email_verified ne sont généralement pas stockés directement dans cette table `profiles` si elle est séparée de auth.users
+    };
   }
 
   /// Copie avec modifications
@@ -171,6 +191,6 @@ class UserModel extends Equatable {
 
   @override
   String toString() {
-    return 'UserModel(uid: $uid, email: $email, role: $role, nomComplet: $nomComplet)';
+    return 'UserModel(uid: $uid, email: $email, role: $role, nomComplet: $nomComplet, niveau: $niveauCode, serie: $serieCode)';
   }
 }

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; 
 import 'package:easybosh_v2/models/matiere_model.dart';
-import '../../../models/chapitre_model.dart'; // Ajouté
-// import '../../../models/lecon_model.dart'; // Pas directement utilisé ici, mais pour info
-import '../cours/chapitre_detail_page.dart';
+import 'package:easybosh_v2/models/chapitre_model.dart';
+import 'package:easybosh_v2/models/user_model.dart'; 
+import 'package:easybosh_v2/core/providers/auth_provider.dart'; 
+import 'package:easybosh_v2/pages/student/cours/chapitre_detail_page.dart'; 
+import 'package:easybosh_v2/providers/user_chapter_progress_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Helper to convert hex string to Color
 Color _hexToColor(String? hexString, {Color defaultColor = Colors.grey}) {
@@ -20,18 +24,15 @@ Color _hexToColor(String? hexString, {Color defaultColor = Colors.grey}) {
 // Placeholder to convert string to IconData (très basique)
 IconData _stringToIconData(String? iconName, {IconData defaultIcon = Icons.help_outline}) {
   if (iconName == null) return defaultIcon;
-  // Ceci est un placeholder. Une vraie implémentation nécessiterait un map ou une logique plus robuste.
-  // Exemples basés sur les noms utilisés dans cours_page.dart
   if (iconName == 'functions') return Icons.functions;
   if (iconName == 'science') return Icons.science;
   if (iconName == 'science_outlined') return Icons.science_outlined;
   if (iconName == 'menu_book') return Icons.menu_book;
   if (iconName == 'language') return Icons.language;
-  // ... ajouter d'autres icônes si nécessaire
   return defaultIcon;
 }
 
-class MatiereDetailPage extends StatefulWidget {
+class MatiereDetailPage extends ConsumerStatefulWidget {
   final MatiereModel matiere;
 
   const MatiereDetailPage({
@@ -40,10 +41,155 @@ class MatiereDetailPage extends StatefulWidget {
   });
 
   @override
-  State<MatiereDetailPage> createState() => _MatiereDetailPageState();
+  ConsumerState<MatiereDetailPage> createState() => _MatiereDetailPageState();
 }
 
-class _MatiereDetailPageState extends State<MatiereDetailPage> {
+class _MatiereDetailPageState extends ConsumerState<MatiereDetailPage> {
+  List<ChapitreModel> _chapitres = [];
+  bool _isLoadingChapitres = true;
+  String? _errorLoadingChapitres;
+  int _totalActiveLeconsCount = 0;
+  bool _isLoadingLeconsCount = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _fetchData();
+      }
+    });
+  }
+
+  Future<void> _fetchData() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingChapitres = true;
+      _isLoadingLeconsCount = true;
+      _errorLoadingChapitres = null;
+      _chapitres = [];
+      _totalActiveLeconsCount = 0;
+    });
+
+    final UserModel? currentUser = ref.read(currentUserProvider);
+    String? userNiveauCode;
+    String? userSerieCode;
+
+    if (currentUser != null && currentUser.isEtudiant) {
+      userNiveauCode = currentUser.niveauCode;
+      userSerieCode = currentUser.serieCode;
+    }
+
+    try {
+      // Fetch Chapitres
+      var queryBuilder = Supabase.instance.client
+          .from('chapitres')
+          .select('id, nom, description, ordre, niveau_code, serie_code, created_at') // Added created_at
+          .eq('matiere_id', widget.matiere.id)
+          .eq('actif', true);
+
+      if (userNiveauCode != null && userNiveauCode.isNotEmpty) {
+        queryBuilder = queryBuilder.eq('niveau_code', userNiveauCode);
+      } else if (currentUser != null && currentUser.isEtudiant) {
+        debugPrint("[MatiereDetailPage] Etudiant ${currentUser.uid} n'a pas de niveau_code.");
+         if (mounted) {
+          setState(() {
+            _isLoadingChapitres = false;
+            _isLoadingLeconsCount = false;
+            _errorLoadingChapitres = "Votre niveau n'est pas défini. Impossible de charger les données.";
+          });
+        }
+        return; 
+      }
+      
+      if (userNiveauCode == '3eme') {
+         if (userSerieCode == null || userSerieCode.isEmpty) {
+            queryBuilder = queryBuilder.filter('serie_code', 'is', 'null'); 
+         } else {
+            queryBuilder = queryBuilder.eq('serie_code', userSerieCode); 
+         }
+      } else if (userSerieCode != null && userSerieCode.isNotEmpty) {
+         queryBuilder = queryBuilder.eq('serie_code', userSerieCode);
+      } else if (currentUser != null && currentUser.isEtudiant && userNiveauCode != '3eme') {
+         debugPrint("[MatiereDetailPage] Etudiant ${currentUser.uid} (niveau $userNiveauCode) n'a pas de serie_code.");
+          if (mounted) {
+            setState(() {
+              _isLoadingChapitres = false;
+              _isLoadingLeconsCount = false;
+              _errorLoadingChapitres = "Votre série n'est pas définie. Impossible de charger les données.";
+            });
+          }
+          return; 
+      }
+
+      final List<Map<String, dynamic>> chapitresResponseData = await queryBuilder.order('ordre', ascending: true);
+      final fetchedChapitres = chapitresResponseData
+          .map((itemAsMap) => ChapitreModel.fromMap(itemAsMap))
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _chapitres = fetchedChapitres;
+          _isLoadingChapitres = false;
+        });
+
+        if (fetchedChapitres.isNotEmpty) {
+          final chapitreIds = fetchedChapitres.map((c) => c.id).toList();
+          // Fetch progress for these chapters
+          await ref.read(userChapterProgressProvider.notifier).fetchProgressForChapters(chapitreIds);
+
+          // Fetch active lecons count for these chapters
+          try {
+            final leconsCountResponse = await Supabase.instance.client
+                .from('cours') 
+                .select() 
+                .eq('actif', true)
+                .filter('chapitre_id', 'in', '(${chapitreIds.join(',')})')
+                .count(CountOption.exact);
+            
+            if (mounted) {
+              setState(() {
+                _totalActiveLeconsCount = leconsCountResponse.count ?? 0;
+                _isLoadingLeconsCount = false;
+              });
+            }
+          } catch (e) {
+            debugPrint('Erreur comptage leçons: $e');
+            if (mounted) {
+              setState(() {
+                _isLoadingLeconsCount = false;
+              });
+            }
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _isLoadingLeconsCount = false;
+              _totalActiveLeconsCount = 0;
+            });
+          }
+        }
+      }
+    } on PostgrestException catch (e) {
+      debugPrint('Erreur Supabase Postgrest (MatiereDetailPage): CODE ${e.code} - ${e.message}');
+      if (mounted) {
+        setState(() {
+          _errorLoadingChapitres = 'Erreur BDD: ${e.message} (code: ${e.code})';
+          _isLoadingChapitres = false;
+          _isLoadingLeconsCount = false;
+        });
+      }
+    } catch (e, stackTrace) {
+      debugPrint('Erreur générale (MatiereDetailPage): $e\n$stackTrace');
+       if (mounted) {
+        setState(() {
+          _errorLoadingChapitres = 'Erreur inattendue: ${e.toString()}';
+          _isLoadingChapitres = false;
+          _isLoadingLeconsCount = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -121,24 +267,14 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // nombreChapitres, niveaux ne sont pas dans MatiereModel
-                // Utilisation de placeholders pour l'instant
                 Text(
-                  '0 chapitres disponibles', // Placeholder
+                  _isLoadingChapitres ? 'Chargement des chapitres...' : (_chapitres.isNotEmpty ? '${_chapitres.length} chapitres disponibles' : 'Aucun chapitre pour votre classe actuellement'),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 14,
                   ),
                 ),
                 const SizedBox(height: 8),
-                // Text(
-                //   'Niveau : N/A', // Placeholder
-                //   style: TextStyle(
-                //     color: Colors.white.withOpacity(0.9),
-                //     fontSize: 14,
-                //   ),
-                // ),
-                // const SizedBox(height: 8),
                 Text(
                   widget.matiere.description ?? 'Aucune description pour cette matière.',
                   style: TextStyle(
@@ -170,14 +306,16 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
   }
 
   Widget _buildStatsSection() {
-    // nombreChapitres, nombreLecons, progressionMoyenne ne sont pas dans MatiereModel
-    // Utilisation de placeholders
+    final chapterProgressState = ref.watch(userChapterProgressProvider);
+    int completedChaptersCount = chapterProgressState.progressMap.values.where((p) => p.isCompleted).length;
+    double progressPercentage = _chapitres.isNotEmpty && !_isLoadingChapitres ? (completedChaptersCount / _chapitres.length) * 100 : 0.0;
+
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             'Chapitres',
-            '0', // Placeholder
+            _isLoadingChapitres ? '-' : _chapitres.length.toString(),
             Icons.book_outlined,
             Colors.blue,
           ),
@@ -186,7 +324,7 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
         Expanded(
           child: _buildStatCard(
             'Leçons',
-            '0', // Placeholder
+            _isLoadingLeconsCount ? '-' : _totalActiveLeconsCount.toString(),
             Icons.article_outlined,
             Colors.green,
           ),
@@ -195,7 +333,7 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
         Expanded(
           child: _buildStatCard(
             'Avancée',
-            '0%', // Placeholder
+             _isLoadingChapitres ? '-' : '${progressPercentage.toStringAsFixed(0)}%', 
             Icons.trending_up,
             Colors.orange,
           ),
@@ -245,16 +383,43 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
   }
 
   Widget _buildChapitresGrid() {
-    // widget.matiere.chapitres n'existe pas dans le MatiereModel actuel.
-    // Pour l'instant, on affiche une liste vide ou un message.
-    // Une vraie implémentation nécessiterait de fetcher les chapitres pour cette matière.
-    final List<ChapitreModel> chapitres = []; // Placeholder: liste vide
+    if (_isLoadingChapitres) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-    if (chapitres.isEmpty) {
+    if (_errorLoadingChapitres != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                _errorLoadingChapitres!,
+                style: const TextStyle(color: Colors.red, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.refresh),
+                label: const Text('Réessayer'),
+                onPressed: _fetchData, 
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+              )
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_chapitres.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 20.0),
-          child: Text('Aucun chapitre disponible pour cette matière pour le moment.',
+          child: Text(
+            'Aucun chapitre disponible pour cette matière dans votre classe actuelle.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey, fontSize: 16),
           ),
@@ -265,19 +430,20 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: chapitres.length,
+      itemCount: _chapitres.length,
       itemBuilder: (context, index) {
-        final chapitre = chapitres[index];
+        final chapitre = _chapitres[index];
         return _buildChapitreCard(chapitre);
       },
     );
   }
 
   Widget _buildChapitreCard(ChapitreModel chapitre) {
-    // Les champs comme color, icon, difficulte, progression, etc. n'existent pas dans notre ChapitreModel actuel.
-    // Nous utilisons des placeholders ou des valeurs par défaut.
     final Color chapitrePlaceholderColor = Colors.teal;
-    final IconData chapitrePlaceholderIcon = Icons.class_outlined; // Corrigé ici
+    final IconData chapitrePlaceholderIcon = Icons.class_outlined;
+    
+    final chapterProgressState = ref.watch(userChapterProgressProvider);
+    final isCompleted = chapterProgressState.progressMap[chapitre.id]?.isCompleted ?? false;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -298,13 +464,15 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
-            Navigator.push(
+            Navigator.push<Widget>( 
               context,
               MaterialPageRoute(
-                builder: (context) => ChapitreDetailPage(
-                  matiere: widget.matiere, // Corrigé ici
-                  chapitre: chapitre, 
-                ),
+                builder: (BuildContext context) { 
+                  return ChapitreDetailPage(
+                    matiere: widget.matiere,
+                    chapitre: chapitre,
+                  );
+                },
               ),
             );
           },
@@ -353,79 +521,18 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
                         ],
                       ),
                     ),
-                    // Section "Difficulté" commentée car non présente dans ChapitreModel
-                    // Container(
-                    //   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    //   decoration: BoxDecoration(
-                    //     color: chapitrePlaceholderColor.withOpacity(0.1), // Placeholder
-                    //     borderRadius: BorderRadius.circular(8),
-                    //   ),
-                    //   child: Text(
-                    //     'Moyen', // Placeholder
-                    //     style: TextStyle(
-                    //       fontSize: 12,
-                    //       color: chapitrePlaceholderColor, // Placeholder
-                    //       fontWeight: FontWeight.w500,
-                    //     ),
-                    //   ),
-                    // ),
+                    IconButton(
+                      icon: Icon(
+                        isCompleted ? Icons.check_circle : Icons.check_circle_outline,
+                        color: isCompleted ? Colors.green : Colors.grey,
+                        size: 28,
+                      ),
+                      onPressed: () {
+                        ref.read(userChapterProgressProvider.notifier).toggleChapterCompletion(chapitre.id, isCompleted);
+                      },
+                    )
                   ],
                 ),
-                const SizedBox(height: 16),
-                // Informations détaillées (nombreLecons, dureeEstimeeTexte) commentées
-                // Row(
-                //   children: [
-                //     _buildInfoChip(
-                //       Icons.article_outlined,
-                //       '0 leçons', // Placeholder
-                //       Colors.blue,
-                //     ),
-                //     const SizedBox(width: 12),
-                //     _buildInfoChip(
-                //       Icons.schedule,
-                //       'N/A', // Placeholder
-                //       Colors.green,
-                //     ),
-                //   ],
-                // ),
-                // const SizedBox(height: 16),
-                // Barre de progression commentée
-                // Column(
-                //   crossAxisAlignment: CrossAxisAlignment.start,
-                //   children: [
-                //     Row(
-                //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                //       children: [
-                //         Text(
-                //           'Progression',
-                //           style: TextStyle(
-                //             fontSize: 14,
-                //             fontWeight: FontWeight.w500,
-                //             color: Colors.grey[700],
-                //           ),
-                //         ),
-                //         Text(
-                //           '0%', // Placeholder
-                //           style: TextStyle(
-                //             fontSize: 14,
-                //             fontWeight: FontWeight.bold,
-                //             color: chapitrePlaceholderColor, // Placeholder
-                //           ),
-                //         ),
-                //       ],
-                //     ),
-                //     const SizedBox(height: 8),
-                //     ClipRRect(
-                //       borderRadius: BorderRadius.circular(4),
-                //       child: LinearProgressIndicator(
-                //         value: 0.0, // Placeholder
-                //         backgroundColor: Colors.grey[300],
-                //         valueColor: AlwaysStoppedAnimation<Color>(chapitrePlaceholderColor), // Placeholder
-                //         minHeight: 6,
-                //       ),
-                //     ),
-                //   ],
-                // ),
               ],
             ),
           ),
@@ -433,30 +540,4 @@ class _MatiereDetailPageState extends State<MatiereDetailPage> {
       ),
     );
   }
-
-  // _buildInfoChip est commenté car les sections l'utilisant sont commentées
-  // Widget _buildInfoChip(IconData icone, String texte, Color couleur) {
-  //   return Container(
-  //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-  //     decoration: BoxDecoration(
-  //       color: couleur.withOpacity(0.1),
-  //       borderRadius: BorderRadius.circular(8),
-  //     ),
-  //     child: Row(
-  //       mainAxisSize: MainAxisSize.min,
-  //       children: [
-  //         Icon(icone, size: 14, color: couleur),
-  //         const SizedBox(width: 4),
-  //         Text(
-  //           texte,
-  //           style: TextStyle(
-  //             fontSize: 12,
-  //             color: couleur,
-  //             fontWeight: FontWeight.w500,
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 }

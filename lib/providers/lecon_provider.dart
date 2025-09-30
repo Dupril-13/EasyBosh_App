@@ -35,7 +35,7 @@ class LeconState {
 
 class LeconNotifier extends StateNotifier<LeconState> {
   final SupabaseClient _supabaseClient;
-  static const String _tableName = 'cours';
+  static const String _tableName = 'cours'; // NOTE: This seems to be used for lecons
   static const String _storageBucketName = 'lecons';
 
   LeconNotifier(this._supabaseClient) : super(LeconState());
@@ -123,7 +123,8 @@ class LeconNotifier extends StateNotifier<LeconState> {
       String? finalUrlMedia = leconSansOrdreEtSansId.urlMedia;
       if (fileBytes != null && fileName != null) {
         final String sanitizedFileName = _sanitizeFileName(fileName);
-        final filePathInBucket = 'lecons/${leconSansOrdreEtSansId.chapitreId}/${DateTime.now().millisecondsSinceEpoch}_$sanitizedFileName';
+        // CORRECTED filePathInBucket:
+        final filePathInBucket = '${leconSansOrdreEtSansId.chapitreId}/${DateTime.now().millisecondsSinceEpoch}_$sanitizedFileName';
         print("Uploading to Supabase Storage with key: $filePathInBucket");
         await _supabaseClient.storage.from(_storageBucketName).uploadBinary(
             filePathInBucket, fileBytes,
@@ -169,7 +170,7 @@ class LeconNotifier extends StateNotifier<LeconState> {
       );
       
       Map<String, dynamic> leconData = leconModelPourInsertion.toMap();
-      leconData.remove('id'); // L'ID est auto-généré
+      leconData.remove('id');
       final currentUser = _supabaseClient.auth.currentUser;
       if (currentUser != null) leconData['created_by'] = currentUser.id;
       else leconData.remove('created_by');
@@ -202,31 +203,31 @@ class LeconNotifier extends StateNotifier<LeconState> {
 
       final currentLeconInDbData = await _supabaseClient
           .from(_tableName)
-          .select('type, ordre_par_type')
+          .select('type, ordre_par_type, url_media') 
           .eq('id', leconAMettreAJour.id)
           .maybeSingle();
       
-      final currentLeconInDb = currentLeconInDbData != null ? LeconModel.fromMap(currentLeconInDbData as Map<String,dynamic>) : null;
+      String? oldUrlMediaFromDb = currentLeconInDbData != null ? currentLeconInDbData['url_media'] as String? : null;
+      String? currentTypeFromDb = currentLeconInDbData != null ? currentLeconInDbData['type'] as String? : null;
 
       if (fileBytes != null && fileName != null) {
         final String sanitizedFileName = _sanitizeFileName(fileName);
-        if (leconAMettreAJour.urlMedia != null && leconAMettreAJour.urlMedia!.isNotEmpty) {
-          const String dummyFileNameForPrefix = 'update_check_prefix_dummy.txt';
-          final String dummyFilePublicUrlForPrefix = _supabaseClient.storage.from(_storageBucketName).getPublicUrl(dummyFileNameForPrefix);
-          final String expectedStoragePrefixForOldFile = dummyFilePublicUrlForPrefix.substring(0, dummyFilePublicUrlForPrefix.length - dummyFileNameForPrefix.length);
-          if (leconAMettreAJour.urlMedia!.startsWith(expectedStoragePrefixForOldFile)) {
-            oldPathToRemove = leconAMettreAJour.urlMedia!.substring(expectedStoragePrefixForOldFile.length);
-            try {
-              if (oldPathToRemove.isNotEmpty) {
+        if (oldUrlMediaFromDb != null && oldUrlMediaFromDb.isNotEmpty) {
+          // Construct the path relative to the bucket for removal
+          try {
+            final Uri oldUri = Uri.parse(oldUrlMediaFromDb);
+            // The path in the URL after /object/public/bucket_name/
+            oldPathToRemove = oldUri.pathSegments.sublist(oldUri.pathSegments.indexOf(_storageBucketName) + 1).join('/');
+            if (oldPathToRemove.isNotEmpty) {
                 await _supabaseClient.storage.from(_storageBucketName).remove([oldPathToRemove]);
                 print("Successfully removed old file from storage during update: $oldPathToRemove");
-              }
-            } catch (e) {
-              print("Could not remove old file during update ($oldPathToRemove): $e");
             }
+          } catch (e) {
+             print("Could not parse or remove old file during update ($oldUrlMediaFromDb / $oldPathToRemove): $e");
           }
         }
-        final filePathInBucket = 'lecons/${leconAMettreAJour.chapitreId}/${DateTime.now().millisecondsSinceEpoch}_$sanitizedFileName';
+        // CORRECTED filePathInBucket:
+        final filePathInBucket = '${leconAMettreAJour.chapitreId}/${DateTime.now().millisecondsSinceEpoch}_$sanitizedFileName';
         print("Uploading to Supabase Storage with key: $filePathInBucket");
         await _supabaseClient.storage.from(_storageBucketName).uploadBinary(
             filePathInBucket, fileBytes,
@@ -235,7 +236,7 @@ class LeconNotifier extends StateNotifier<LeconState> {
         leconAvecValeursMaj = leconAvecValeursMaj.copyWith(urlMedia: finalUrlMedia);
       }
 
-      bool typeChanged = currentLeconInDb != null && currentLeconInDb.type != leconAvecValeursMaj.type;
+      bool typeChanged = currentTypeFromDb != null && currentTypeFromDb != leconAvecValeursMaj.type;
       bool ordreParTypeManquantOuInvalide = leconAvecValeursMaj.ordreParType == null || 
                                           !leconAvecValeursMaj.ordreParType!.containsKey(leconAvecValeursMaj.type) ||
                                           (leconAvecValeursMaj.ordreParType![leconAvecValeursMaj.type] ?? 0) == 0;
@@ -338,30 +339,66 @@ class LeconNotifier extends StateNotifier<LeconState> {
     }
   }
 
+  Future<void> updateLeconSpecificOrder(int leconId, String type, int newOrderInType) async {
+    try {
+      final leconDataResponse = await _supabaseClient
+          .from(_tableName) 
+          .select('ordre_par_type')
+          .eq('id', leconId)
+          .maybeSingle();
+
+      Map<String, int> updatedOrdreParType = {};
+
+      if (leconDataResponse != null && leconDataResponse['ordre_par_type'] != null) {
+        var rawMap = leconDataResponse['ordre_par_type'] as Map;
+         rawMap.forEach((key, value) {
+          if (value is int) {
+            updatedOrdreParType[key.toString()] = value;
+          } else if (value is String) {
+            updatedOrdreParType[key.toString()] = int.tryParse(value) ?? 0;
+          } else {
+            updatedOrdreParType[key.toString()] = 0; 
+          }
+        });
+      }
+      
+      updatedOrdreParType[type] = newOrderInType;
+      
+      await _supabaseClient
+          .from(_tableName)
+          .update({
+            'ordre_par_type': updatedOrdreParType,
+            'updated_at': DateTime.now().toIso8601String()
+          })
+          .eq('id', leconId);
+          
+      print("Lecon $leconId specific order for type '$type' updated to $newOrderInType. Full map: $updatedOrdreParType");
+
+    } catch (e) {
+      print("Error in updateLeconSpecificOrder for leconId $leconId, type $type: ${e.toString()}");
+      rethrow;
+    }
+  }
+
   Future<bool> deleteLecon(int leconId) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     String pathToRemoveForDebug = 'path_not_set';
-    LeconModel? leconASupprimer; // Initialiser à null
+    LeconModel? leconASupprimer;
 
     try {
-      // Tenter de trouver la leçon dans la liste principale
       try {
         leconASupprimer = state.lecons.firstWhere((lec) => lec.id == leconId);
       } catch (e) {
-        // Non trouvée dans la liste principale, vérifier leconPourEdition
         if (state.leconPourEdition?.id == leconId) {
           leconASupprimer = state.leconPourEdition!;
         }
       }
       
-      // Si la leçon n'est toujours pas trouvée localement, la charger depuis la BDD
       if (leconASupprimer == null) {
           final leconData = await _supabaseClient.from(_tableName).select().eq('id', leconId).maybeSingle();
           if (leconData != null) {
               leconASupprimer = LeconModel.fromMap(leconData as Map<String, dynamic>);
           } else {
-              // Si toujours pas trouvée, impossible de connaître chapitreId ou urlMedia.
-              // On tente la suppression par ID seulement, pas de nettoyage de fichier ni de réactualisation ciblée.
               await _supabaseClient.from(_tableName).delete().eq('id', leconId);
               state = state.copyWith(isLoading: false, lecons: state.lecons.where((l) => l.id != leconId).toList());
               print("Leçon non trouvée localement ou en BDD pour suppression, suppression par ID seulement.");
@@ -375,19 +412,17 @@ class LeconNotifier extends StateNotifier<LeconState> {
       await _supabaseClient.from(_tableName).delete().eq('id', leconId);
       
       if (urlMediaASupprimer != null && urlMediaASupprimer.isNotEmpty) {
-        const String dummyFileName = 'check_path_prefix_dummy.txt';
-        final String dummyFilePublicUrl = _supabaseClient.storage.from(_storageBucketName).getPublicUrl(dummyFileName);
-        final String expectedStoragePrefix = dummyFilePublicUrl.substring(0, dummyFilePublicUrl.length - dummyFileName.length);
-        
-        if (urlMediaASupprimer.startsWith(expectedStoragePrefix)) {
-          pathToRemoveForDebug = urlMediaASupprimer.substring(expectedStoragePrefix.length);
-          if (pathToRemoveForDebug.isNotEmpty) {
-            await _supabaseClient.storage.from(_storageBucketName).remove([pathToRemoveForDebug]);
-            print("Successfully removed from storage: $pathToRemoveForDebug");
+         try {
+            final Uri oldUri = Uri.parse(urlMediaASupprimer);
+            // The path in the URL after /object/public/bucket_name/
+            pathToRemoveForDebug = oldUri.pathSegments.sublist(oldUri.pathSegments.indexOf(_storageBucketName) + 1).join('/');
+            if (pathToRemoveForDebug.isNotEmpty) {
+                await _supabaseClient.storage.from(_storageBucketName).remove([pathToRemoveForDebug]);
+                print("Successfully removed from storage: $pathToRemoveForDebug");
+            }
+          } catch (e) {
+             print("Could not parse or remove old file during delete ($urlMediaASupprimer / $pathToRemoveForDebug): $e");
           }
-        } else {
-           print("URL media ($urlMediaASupprimer) does not match expected Supabase storage prefix ($expectedStoragePrefix)");
-        }
       }
 
       if (chapitreIdConcerne != null && chapitreIdConcerne != 0) { 

@@ -7,6 +7,85 @@ import 'package:easybosh_v2/models/matiere_model.dart';
 import 'package:easybosh_v2/providers/lecon_provider.dart';
 import 'package:easybosh_v2/providers/chapitre_provider.dart';
 import 'package:easybosh_v2/providers/matiere_provider.dart';
+import 'package:easybosh_v2/pages/common/pdf_viewer_page.dart';
+
+class LeconPreviewPagePlaceholder extends StatelessWidget {
+  final LeconModel lecon;
+
+  const LeconPreviewPagePlaceholder({Key? key, required this.lecon}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Aperçu: ${lecon.nom}'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Titre: ${lecon.nom}', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text('Type: ${lecon.type.toUpperCase()}', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text('Description: ${lecon.description ?? 'Aucune description'}', style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 16),
+              Text('URL Média: ${lecon.urlMedia ?? 'Non défini'}', style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 16),
+              Text('Actif: ${lecon.actif ? 'Oui' : 'Non'}'),
+              const SizedBox(height: 24),
+              if (lecon.type == 'pdf' && lecon.urlMedia != null && lecon.urlMedia!.isNotEmpty)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PdfViewerPage(
+                          pdfUrl: lecon.urlMedia!,
+                          lessonTitle: lecon.nom,
+                        ),
+                      ),
+                    );
+                  },
+                  label: const Text('Ouvrir le PDF'),
+                ),
+              if (lecon.type == 'video' && lecon.urlMedia != null && lecon.urlMedia!.isNotEmpty)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.video_library_outlined),
+                  onPressed: () {
+                     print('TODO: Naviguer vers lecteur Vidéo pour ${lecon.urlMedia}');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('TODO: Lire Vidéo: ${lecon.urlMedia}')),
+                    );
+                  },
+                  label: const Text('Lire la Vidéo'),
+                ),
+              if (lecon.type == 'audio' && lecon.urlMedia != null && lecon.urlMedia!.isNotEmpty)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.audiotrack_outlined),
+                  onPressed: () {
+                    print('TODO: Naviguer vers lecteur Audio pour ${lecon.urlMedia}');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('TODO: Écouter Audio: ${lecon.urlMedia}')),
+                    );
+                  },
+                  label: const Text('Écouter l\'Audio'),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class ManageLeconsPage extends ConsumerStatefulWidget {
   final int chapitreId;
@@ -27,10 +106,10 @@ class ManageLeconsPage extends ConsumerStatefulWidget {
 }
 
 class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
-  String _selectedLeconType = 'pdf'; // Default to PDF
+  String _selectedLeconType = 'pdf'; 
   final List<String> _chipTypes = ['pdf', 'video', 'audio'];
   Map<String, int> _lessonsCountsPerType = {};
-  List<LeconModel> _leconsAffichees = []; // To hold the currently displayed (filtered and sorted) lecons
+  List<LeconModel> _leconsAffichees = []; 
 
   @override
   void initState() {
@@ -47,7 +126,7 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
     if (oldWidget.chapitreId != widget.chapitreId) {
       print("MANAGE_LECONS_PAGE - didUpdateWidget: ChapitreId changed from ${oldWidget.chapitreId} to ${widget.chapitreId}");
       setState(() {
-        _selectedLeconType = 'pdf'; // Reset to PDF on chapter change
+        _selectedLeconType = 'pdf'; 
         _lessonsCountsPerType = {};
         _leconsAffichees = [];
       });
@@ -56,10 +135,6 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
   }
 
   Future<void> _fetchDataAndProcessLecons() async {
-    if (!mounted) return;
-    if (ref.read(matiereProvider).matieres.isEmpty) {
-      await ref.read(matiereProvider.notifier).fetchMatieres();
-    }
     if (!mounted) return;
     await ref.read(leconProvider.notifier).fetchLecons(chapitreId: widget.chapitreId);
     if (mounted) {
@@ -75,20 +150,20 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
 
     Map<String, int> counts = {};
     for (String type in _chipTypes) {
-      counts[type] = allLeconsForChapter.where((lecon) => lecon.type?.toLowerCase() == type).length;
+      counts[type] = allLeconsForChapter.where((lecon) => lecon.type.toLowerCase() == type).length;
     }
 
     List<LeconModel> filtered = allLeconsForChapter
-        .where((lecon) => lecon.type?.toLowerCase() == _selectedLeconType)
+        .where((lecon) => lecon.type.toLowerCase() == _selectedLeconType)
         .toList();
 
     filtered.sort((a, b) {
       final orderA = a.ordreParType?[_selectedLeconType];
       final orderB = b.ordreParType?[_selectedLeconType];
       if (orderA != null && orderB != null) return orderA.compareTo(orderB);
-      if (orderA != null) return -1;
-      if (orderB != null) return 1;
-      return a.ordre.compareTo(b.ordre);
+      if (orderA != null) return -1; 
+      if (orderB != null) return 1;  
+      return a.ordre.compareTo(b.ordre); 
     });
     
     setState(() {
@@ -96,6 +171,15 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
       _leconsAffichees = filtered;
       print("MANAGE_LECONS_PAGE - _processLecons: Counts: $_lessonsCountsPerType, SelectedType: $_selectedLeconType, FilteredLecons: ${_leconsAffichees.length}");
     });
+  }
+  
+  void _navigateToLeconPreview(LeconModel lecon) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LeconPreviewPagePlaceholder(lecon: lecon),
+      ),
+    );
   }
 
   Widget _buildAddLessonButton(BuildContext context) {
@@ -150,8 +234,8 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
   @override
   Widget build(BuildContext context) {
     final leconState = ref.watch(leconProvider);
-    final matiereState = ref.watch(matiereProvider);
-    final chapitreGlobalState = ref.watch(chapitreProvider);
+    final matiereState = ref.watch(matiereProvider); 
+    final chapitreGlobalState = ref.watch(chapitreProvider); 
 
     ChapitreModel? currentChapitre;
     MatiereModel? currentMatiere;
@@ -221,7 +305,7 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
         itemBuilder: (context, index) {
           final lecon = _leconsAffichees[index];
           return Card(
-            key: ValueKey("${_selectedLeconType}_${lecon.id}"),
+            key: ValueKey("${_selectedLeconType}_${lecon.id}"), 
             margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             elevation: 2,
             child: ListTile(
@@ -231,7 +315,7 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
               ),
               title: Text(lecon.nom, style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(
-                "Type: ${(lecon.type ?? 'N/A').replaceAll('_',' ').toUpperCase()}\n${lecon.description ?? 'Pas de description'}",
+                "Type: ${lecon.type.replaceAll('_',' ').toUpperCase()}\n${lecon.description ?? 'Pas de description'}",
                 maxLines: 2, overflow: TextOverflow.ellipsis
               ),
               trailing: Row(
@@ -258,7 +342,7 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
                       final success = await ref.read(leconProvider.notifier).deleteLecon(lecon.id);
                       if(mounted && success) {
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"${lecon.nom}" supprimé.')));
-                        _processLecons();
+                        _processLecons(); 
                       } else if(mounted) {
                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: ${ref.read(leconProvider).errorMessage ?? "Erreur lors de la suppression"}')));
                       }
@@ -274,7 +358,7 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
                   ),
                 ],
               ),
-              onTap: () => widget.onEditLecon?.call(lecon),
+              onTap: () => _navigateToLeconPreview(lecon), 
             ),
           );
         },
@@ -293,30 +377,33 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
             for (int i = 0; i < _leconsAffichees.length; i++) {
               LeconModel currentLecon = _leconsAffichees[i];
               Map<String, int> updatedOrdreParType = Map.from(currentLecon.ordreParType ?? {});
-              updatedOrdreParType[_selectedLeconType] = i + 1; // 1-based order
+              updatedOrdreParType[_selectedLeconType] = i + 1; 
 
               LeconModel leconToUpdate = currentLecon.copyWith(ordreParType: updatedOrdreParType);
-              updatedLeconsInView.add(leconToUpdate); // Keep the updated instance for the local list
+              updatedLeconsInView.add(leconToUpdate); 
               
               print("      Updating ${leconToUpdate.nom} -> ordreParType: ${leconToUpdate.ordreParType}");
-              updateFutures.add(ref.read(leconProvider.notifier).updateLecon(leconToUpdate));
+              updateFutures.add(ref.read(leconProvider.notifier).updateLeconSpecificOrder(
+                leconToUpdate.id, 
+                _selectedLeconType, 
+                i + 1
+              ));
             }
             
-            _leconsAffichees = updatedLeconsInView; // Update the list in state with new instances
+            _leconsAffichees = updatedLeconsInView; 
 
-            Future.wait(updateFutures).then((_){
+            Future.wait(updateFutures).then((_) async { 
                 print("MANAGE_LECONS_PAGE - All lecons updated for type specific order.");
-                 // Potentially call _processLecons() again if server might return different data
-                 // or if updateLecon doesn't trigger a sufficient rebuild via the provider.
-                 // For now, local state is updated, and provider should handle remote state.
-                 // _processLecons(); 
+                await ref.read(leconProvider.notifier).fetchLecons(chapitreId: widget.chapitreId);
+                if (mounted) _processLecons();
             }).catchError((error){
                 print("MANAGE_LECONS_PAGE - Error updating lecons for type specific order: $error");
                 if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erreur lors de la mise à jour de l'ordre: $error")));
+                    ref.read(leconProvider.notifier).fetchLecons(chapitreId: widget.chapitreId).then((_) {
+                      if(mounted) _processLecons();
+                    });
                 }
-                // Consider reverting local changes or re-fetching on error
-                 _processLecons(); // Re-process to reflect actual state from provider if updates failed
             });
           });
         },
@@ -372,3 +459,29 @@ class _ManageLeconsPageState extends ConsumerState<ManageLeconsPage> {
     );
   }
 }
+
+/*
+// Assurez-vous que LeconNotifier a une méthode updateLeconSpecificOrder
+// Exemple (à ajouter dans lecon_provider.dart si ce n'est pas déjà fait d'une manière similaire):
+extension LeconNotifierUpdateSpecificOrder on LeconNotifier {
+  Future<void> updateLeconSpecificOrder(int leconId, String type, int newOrderInType) async {
+    // Logique pour mettre à jour seulement l'ordre pour ce type spécifique dans la map ordreParType
+    // Cela pourrait impliquer de récupérer la leçon, modifier la map, puis la mettre à jour.
+    // Exemple simplifié:
+    try {
+      final lecon = state.lecons.firstWhere((l) => l.id == leconId);
+      Map<String, int> updatedOrdreParType = Map.from(lecon.ordreParType ?? {});
+      updatedOrdreParType[type] = newOrderInType;
+      
+      await _supabaseClient
+          .from('lecons')
+          .update({'ordre_par_type': updatedOrdreParType})
+          .eq('id', leconId);
+      // Pas besoin de refetch ici car le build de ManageLeconsPage le fera après Future.wait
+    } catch (e) {
+      // Gérer l'erreur
+      rethrow;
+    }
+  }
+}
+*/

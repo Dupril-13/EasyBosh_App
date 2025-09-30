@@ -42,9 +42,8 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
   void initState() {
     super.initState();
     _selectedNiveauCode = widget.initialNiveauCode;
-    // Si le niveau initial est '3eme', forcer la série à 'TC'
     if (_selectedNiveauCode == '3eme') {
-      _selectedSerieCode = 'TC';
+      _selectedSerieCode = widget.initialSerieCode ?? 'TC'; 
     } else {
       _selectedSerieCode = widget.initialSerieCode;
     }
@@ -54,7 +53,6 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
       bool niveauFetched = false;
       bool serieFetched = false;
 
-      // Assurer que les providers de niveau et série sont initialisés
       if (ref.read(niveauProvider).niveaux.isEmpty) {
         await ref.read(niveauProvider.notifier).fetchNiveaux();
         niveauFetched = true;
@@ -64,48 +62,48 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
         serieFetched = true;
       }
       
-      if (niveauFetched || serieFetched) {
-         if (mounted) setState(() {}); // Rebuild pour que les dropdowns aient les données à jour
+      if (mounted && (niveauFetched || serieFetched)) {
+         setState(() {}); 
       }
       
-      // Valider les codes initiaux contre les listes chargées
       final niveaux = ref.read(niveauProvider).niveaux;
       final series = ref.read(serieProvider).series;
 
       if (_selectedNiveauCode != null && !niveaux.any((n) => n.code == _selectedNiveauCode)) {
           _selectedNiveauCode = null;
-          _selectedSerieCode = null; // Si niveau invalidé, série aussi
-          _selectedMatiereId = null; // Et matière aussi
+          _selectedSerieCode = null; 
+          _selectedMatiereId = null; 
       }
-      // Si niveau est 3eme, série doit être TC
       if (_selectedNiveauCode == '3eme') {
-          _selectedSerieCode = 'TC';
+          if (!series.any((s) => s.code == 'TC')) {
+             _selectedSerieCode = null; 
+          } else {
+             _selectedSerieCode = 'TC'; 
+          }
       } else if (_selectedSerieCode != null && !series.any((s) => s.code == _selectedSerieCode)) {
           _selectedSerieCode = null;
-          _selectedMatiereId = null; // Si série invalidée, matière aussi
+          _selectedMatiereId = null; 
       }
 
-      if (_selectedNiveauCode != null && _selectedSerieCode != null) {
+      String? effectiveSerieCodeForFetch = _selectedSerieCode;
+      if (_selectedNiveauCode == '3eme') {
+         effectiveSerieCodeForFetch = 'TC'; 
+      }
+
+      if (_selectedNiveauCode != null && effectiveSerieCodeForFetch != null) {
         await ref.read(matiereProvider.notifier).fetchMatieres(
           niveauCode: _selectedNiveauCode!,
-          serieCode: _selectedSerieCode!
+          serieCode: effectiveSerieCodeForFetch
         );
-        if (mounted) setState((){}); // Pour le dropdown matière
+        if (mounted) setState((){}); 
 
         if (_selectedMatiereId != null && !ref.read(matiereProvider).matieres.any((m) => m.id == _selectedMatiereId)){
             _selectedMatiereId = null; 
         }
-        if (mounted) setState((){}); // Rebuild si _selectedMatiereId a été nullifié
+        if (mounted) setState((){});
 
-        if (_selectedMatiereId != null) {
-          ref.read(chapitreProvider.notifier).fetchChapitres(
-            matiereId: _selectedMatiereId!,
-            niveauCode: _selectedNiveauCode!,
-            serieCode: _selectedSerieCode!
-          );
-        } else {
-          ref.read(chapitreProvider.notifier).clearChapitres();
-        }
+        _fetchFilteredChapitres(); 
+
       } else {
         ref.read(matiereProvider.notifier).clearDataAndError(); 
         ref.read(chapitreProvider.notifier).clearChapitres();
@@ -117,7 +115,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
   void _fetchFilteredMatieresAndChapitres() {
     String? serieCodeToFetch = _selectedSerieCode;
     if (_selectedNiveauCode == '3eme') {
-      serieCodeToFetch = 'TC'; // Assurer que TC est utilisé pour 3eme
+      serieCodeToFetch = 'TC'; 
     }
 
     if (_selectedNiveauCode != null && serieCodeToFetch != null) {
@@ -131,8 +129,8 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
             _selectedMatiereId = null;
             matiereChanged = true;
           }
-          if(matiereChanged) {
-            setState(() {}); // Rebuild si _selectedMatiereId a été nullifié
+          if(matiereChanged && mounted) {
+            setState(() {}); 
           }
         }
         _fetchFilteredChapitres(); 
@@ -146,16 +144,16 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
   }
 
   void _fetchFilteredChapitres() {
-    String? serieCodeToFetch = _selectedSerieCode;
+    String? effectiveSerieCode = _selectedSerieCode;
     if (_selectedNiveauCode == '3eme') {
-      serieCodeToFetch = 'TC';
+      effectiveSerieCode = 'TC'; 
     }
 
-    if (_selectedNiveauCode != null && serieCodeToFetch != null && _selectedMatiereId != null) {
+    if (_selectedMatiereId != null && _selectedNiveauCode != null && effectiveSerieCode != null) {
       ref.read(chapitreProvider.notifier).fetchChapitres(
-        matiereId: _selectedMatiereId!,
-        niveauCode: _selectedNiveauCode!,
-        serieCode: serieCodeToFetch
+        _selectedMatiereId!,
+        niveauCode: _selectedNiveauCode, 
+        serieCode: effectiveSerieCode     
       );
     } else {
       ref.read(chapitreProvider.notifier).clearChapitres();
@@ -167,22 +165,22 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
     if (newNiveauCode == _selectedNiveauCode) return;
     setState(() {
       _selectedNiveauCode = newNiveauCode;
-      _selectedMatiereId = null; // Toujours réinitialiser la matière lors du changement de niveau
+      _selectedMatiereId = null; 
       if (newNiveauCode == '3eme') {
-        _selectedSerieCode = 'TC'; // Série implicite pour 3ème
+        _selectedSerieCode = 'TC'; 
       } else {
-        _selectedSerieCode = null; // Réinitialiser la série pour les autres niveaux
+        _selectedSerieCode = null; 
       }
     });
     _fetchFilteredMatieresAndChapitres();
   }
 
   void _onSerieChanged(String? newSerieCode) {
-    // Ce callback ne devrait pas être appelé si le niveau est '3eme' car le dropdown série sera désactivé.
+    if (_selectedNiveauCode == '3eme') return; 
     if (newSerieCode == _selectedSerieCode) return;
     setState(() {
       _selectedSerieCode = newSerieCode;
-      _selectedMatiereId = null; // Réinitialiser la matière lors du changement de série
+      _selectedMatiereId = null; 
     });
     _fetchFilteredMatieresAndChapitres();
   }
@@ -197,25 +195,23 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
   
   List<DropdownMenuItem<String?>> _buildSerieDropdownItems(List<SerieModel> allSeries, String? currentNiveauCode) {
     if (currentNiveauCode == null) {
-      return []; // Pas de niveau sélectionné, pas de séries à montrer
+      return [const DropdownMenuItem<String?>(value: null, child: Text("Sélectionner un niveau d'abord", style: TextStyle(color: Colors.grey)))]; 
     }
     if (currentNiveauCode == '3eme') {
-      // Pour 3ème, seulement Tronc Commun est pertinent (et le dropdown sera désactivé)
       final tcSerie = allSeries.firstWhere((s) => s.code == 'TC', 
-                        orElse: () => SerieModel(id: -1, code: 'TC', nom: 'Tronc Commun', type: 'Tronc Commun')); // Fallback avec id et type
+                        orElse: () => SerieModel(id: -1, code: 'TC', nom: 'Tronc Commun', type: 'Tronc Commun')); 
       return [DropdownMenuItem<String?>(
         value: tcSerie.code,
         child: Text(tcSerie.nom, overflow: TextOverflow.ellipsis),
       )];
     }
 
-    // Pour les autres niveaux, filtrer les séries et ajuster les noms
     return allSeries
-        .where((serie) => serie.code != 'TC') // Exclure Tronc Commun
+        .where((serie) => serie.code != 'TC') 
         .map((serie) {
           String displayName = serie.nom;
           if (serie.code == 'TI' && serie.nom.contains('(Informatique)')) {
-            displayName = 'Série TI'; // Ajuster le nom pour TI
+            displayName = 'Série TI'; 
           }
           return DropdownMenuItem<String?>(
             value: serie.code,
@@ -228,8 +224,10 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
     String? currentSerieCode = _selectedSerieCode;
     if (_selectedNiveauCode == '3eme') currentSerieCode = 'TC';
 
+    bool canAdd = _selectedNiveauCode != null && currentSerieCode != null && _selectedMatiereId != null;
+
     return ElevatedButton.icon(
-      onPressed: (_selectedNiveauCode != null && currentSerieCode != null && _selectedMatiereId != null) 
+      onPressed: canAdd && widget.onAddChapitre != null 
                  ? widget.onAddChapitre 
                  : null, 
       icon: const Icon(Icons.add),
@@ -248,7 +246,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
     final serieState = ref.watch(serieProvider);
 
     final List<NiveauModel> niveaux = niveauState.niveaux;
-    final List<SerieModel> seriesRaw = serieState.series; // Séries brutes depuis le provider
+    final List<SerieModel> seriesRaw = serieState.series; 
     final List<MatiereModel> matieres = matiereState.matieres;
     
     String? effectiveSerieCode = _selectedSerieCode;
@@ -257,52 +255,52 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
     }
 
     final bool filtersFullySelected = _selectedNiveauCode != null && effectiveSerieCode != null && _selectedMatiereId != null;
-    final bool canReorder = filtersFullySelected;
+    final bool canReorder = filtersFullySelected && chapitreState.chapitres.isNotEmpty; 
 
     Widget content;
-    String loadingMessage = "Chargement...";
+    String loadingMessage = "Chargement des filtres...";
     if (niveauState.isLoading && niveaux.isEmpty) loadingMessage = "Chargement des niveaux...";
     else if (serieState.isLoading && seriesRaw.isEmpty) loadingMessage = "Chargement des séries...";
     else if (matiereState.isLoading && matieres.isEmpty && _selectedNiveauCode != null && effectiveSerieCode != null) loadingMessage = "Chargement des matières...";
-    else if (chapitreState.isLoading && chapitreState.chapitres.isEmpty && filtersFullySelected) loadingMessage = "Chargement des chapitres...";
+    else if (chapitreState.isLoading && _selectedMatiereId != null) loadingMessage = "Chargement des chapitres..."; 
 
     bool mainLoading = (niveauState.isLoading && niveaux.isEmpty) || 
                        (serieState.isLoading && seriesRaw.isEmpty) || 
-                       (matiereState.isLoading && matieres.isEmpty && _selectedNiveauCode != null && effectiveSerieCode != null) ||
-                       (chapitreState.isLoading && chapitreState.chapitres.isEmpty && filtersFullySelected);
+                       (matiereState.isLoading && matieres.isEmpty && _selectedNiveauCode != null && effectiveSerieCode != null && _selectedMatiereId == null) || 
+                       (chapitreState.isLoading && _selectedMatiereId != null); 
 
     if (mainLoading) {
-      content = Center(child: CircularProgressIndicator(semanticsLabel: loadingMessage));
+      content = Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [CircularProgressIndicator(semanticsLabel: loadingMessage), const SizedBox(height:10), Text(loadingMessage)]));
     } else if (_selectedNiveauCode == null ) {
        content = const Center(
             child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                    Icon(Icons.filter_list_alt, size: 80, color: Colors.grey),
+                    Icon(Icons.filter_list_off_outlined, size: 80, color: Colors.grey),
                     SizedBox(height: 16),
-                    Text('Veuillez sélectionner un Niveau.', textAlign: TextAlign.center, style: TextStyle(fontSize: 18)),
+                    Text('Veuillez sélectionner un Niveau pour commencer.', textAlign: TextAlign.center, style: TextStyle(fontSize: 18)),
                 ],
             ),
         );
-    } else if (effectiveSerieCode == null && _selectedNiveauCode != '3eme') { // Condition pour série manquante (hors 3eme)
+    } else if (effectiveSerieCode == null && _selectedNiveauCode != '3eme') { 
        content = const Center(
             child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                    Icon(Icons.filter_list_alt, size: 80, color: Colors.grey),
+                     Icon(Icons.filter_list_off_outlined, size: 80, color: Colors.grey),
                     SizedBox(height: 16),
-                    Text('Veuillez sélectionner une Série.', textAlign: TextAlign.center, style: TextStyle(fontSize: 18)),
+                    Text('Veuillez sélectionner une Série pour ce niveau.', textAlign: TextAlign.center, style: TextStyle(fontSize: 18)),
                 ],
             ),
         );
     } else if (matieres.isEmpty && !matiereState.isLoading && _selectedNiveauCode != null && effectiveSerieCode != null) {
-        content = const Center(child: Text("Aucune matière trouvée pour ce niveau et cette série.", style: TextStyle(fontSize: 18)));
+        content = const Center(child: Text("Aucune matière disponible pour ce niveau et cette série.", style: TextStyle(fontSize: 18), textAlign: TextAlign.center,));
     } else if (_selectedMatiereId == null && _selectedNiveauCode != null && effectiveSerieCode != null) {
         content = const Center(
             child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                    Icon(Icons.filter_list_alt, size: 80, color: Colors.grey),
+                    Icon(Icons.filter_list_off_outlined, size: 80, color: Colors.grey),
                     SizedBox(height: 16),
                     Text('Veuillez sélectionner une Matière.', textAlign: TextAlign.center, style: TextStyle(fontSize: 18)),
                 ],
@@ -313,20 +311,20 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.folder_special_outlined, size: 80, color: Colors.grey),
+            const Icon(Icons.folder_off_outlined, size: 80, color: Colors.grey),
             const SizedBox(height: 16),
-            Text('Aucun chapitre pour la sélection actuelle.', style: const TextStyle(fontSize: 18)),
+            const Text('Aucun chapitre trouvé pour cette sélection.', style: TextStyle(fontSize: 18), textAlign: TextAlign.center,),
             const SizedBox(height: 8),
             if (widget.onAddChapitre != null)
-              const Text('Appuyez sur le bouton ci-dessus pour ajouter.', textAlign: TextAlign.center),
+              const Text('Vous pouvez en ajouter un en utilisant le bouton ci-dessus.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
           ],
         ),
       );
     } else if (chapitreState.errorMessage != null && filtersFullySelected) {
-        content = Center(child: Text("Erreur chapitres: ${chapitreState.errorMessage}", style: const TextStyle(color: Colors.red)));
+        content = Center(child: Text("Erreur lors du chargement des chapitres: ${chapitreState.errorMessage}", style: const TextStyle(color: Colors.red), textAlign: TextAlign.center,));
     }
     else {
-      final List<ChapitreModel> currentChapitres = List.from(chapitreState.chapitres);
+      final List<ChapitreModel> currentChapitres = chapitreState.chapitres;
       content = ReorderableListView.builder(
         buildDefaultDragHandles: false,
         itemCount: currentChapitres.length,
@@ -338,7 +336,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
             elevation: 2,
             child: ListTile(
               leading: CircleAvatar(
-                child: Text('${chapitre.ordre}', style: const TextStyle(color: Colors.white)),
+                child: Text('${index + 1}', style: const TextStyle(color: Colors.white)), 
                 backgroundColor: Theme.of(context).colorScheme.primary,
               ),
               title: Text(chapitre.nom, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -363,7 +361,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
                         context: context,
                         builder: (BuildContext dialogContext) => AlertDialog(
                           title: const Text('Confirmer suppression'),
-                          content: Text('Supprimer "${chapitre.nom}"? Les leçons associées pourraient être affectées.'),
+                          content: Text('Supprimer "${chapitre.nom}"? Les leçons associées pourraient aussi être supprimées ou affectées.'),
                           actions: <Widget>[
                             TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Annuler')),
                             TextButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: Text('Supprimer', style: TextStyle(color: Theme.of(context).colorScheme.error))),
@@ -371,11 +369,16 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
                         ),
                       );
                       if (confirm == true) {
-                        final success = await ref.read(chapitreProvider.notifier).deleteChapitre(chapitre.id);
+                        final success = await ref.read(chapitreProvider.notifier).deleteChapitre(
+                          chapitre.id,
+                          currentMatiereId: _selectedMatiereId, 
+                          currentNiveauCode: _selectedNiveauCode, 
+                          currentSerieCode: effectiveSerieCode 
+                        );
                         if (mounted && success) {
-                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"${chapitre.nom}" supprimé.')));
+                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"${chapitre.nom}" supprimé.'), backgroundColor: Colors.green,));
                         } else if (mounted) {
-                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: ${ref.read(chapitreProvider).errorMessage ?? "Erreur lors de la suppression"}')));
+                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: ${ref.read(chapitreProvider).errorMessage ?? "Erreur lors de la suppression"}'), backgroundColor: Colors.red,));
                         }
                       }
                     },
@@ -396,13 +399,16 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
         onReorder: (int oldIndex, int newIndex) {
           if (!canReorder || _selectedMatiereId == null || _selectedNiveauCode == null || effectiveSerieCode == null) return;
           if (oldIndex < newIndex) newIndex -= 1;
-          final ChapitreModel item = currentChapitres.removeAt(oldIndex);
-          currentChapitres.insert(newIndex, item);
+          
+          List<ChapitreModel> reorderedList = List.from(chapitreState.chapitres);
+          final ChapitreModel item = reorderedList.removeAt(oldIndex);
+          reorderedList.insert(newIndex, item);
+          
           ref.read(chapitreProvider.notifier).updateChapitresOrder(
-            currentChapitres,
-            matiereId: _selectedMatiereId!,
-            niveauCode: _selectedNiveauCode!,
-            serieCode: effectiveSerieCode
+            reorderedList, 
+            matiereId: _selectedMatiereId!, 
+            niveauCode: _selectedNiveauCode, 
+            serieCode: effectiveSerieCode 
           );
         },
       );
@@ -433,13 +439,18 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
               Expanded(
                 child: DropdownButtonFormField<String?>(
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Série', border: OutlineInputBorder()),
-                  value: _selectedNiveauCode == '3eme' ? 'TC' : _selectedSerieCode, // Assurer que TC est affiché pour 3eme
+                  decoration: InputDecoration(
+                    labelText: 'Série',
+                    border: const OutlineInputBorder(),
+                    filled: _selectedNiveauCode == '3eme', // Correction: 'filled' dans InputDecoration
+                    fillColor: _selectedNiveauCode == '3eme' ? Colors.grey[200] : null,
+                  ),
+                  value: _selectedNiveauCode == '3eme' ? 'TC' : _selectedSerieCode, 
                   hint: const Text('Choisir Série'),
-                  disabledHint: _selectedNiveauCode == null ? const Text('Choisir un niveau d\'abord') 
-                                : (_selectedNiveauCode == '3eme' ? const Text('Tronc Commun') : null),
+                  disabledHint: _selectedNiveauCode == null ? const Text('Choisir un niveau') 
+                                : (_selectedNiveauCode == '3eme' ? const Text('Tronc Commun (Auto)') : null),
                   items: _buildSerieDropdownItems(seriesRaw, _selectedNiveauCode),
-                  onChanged: (_selectedNiveauCode != null && _selectedNiveauCode != '3eme') ? _onSerieChanged : null, // Désactivé pour 3eme
+                  onChanged: (_selectedNiveauCode != null && _selectedNiveauCode != '3eme') ? _onSerieChanged : null, 
                   validator: (value) => (_selectedNiveauCode != null && _selectedNiveauCode != '3eme' && value == null) ? 'Champ requis' : null,
                 ),
               ),
@@ -464,7 +475,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
                   onChanged: (_selectedNiveauCode != null && effectiveSerieCode != null && !matiereState.isLoading) 
                              ? _onMatiereChanged 
                              : null,
-                  validator: (value) => (_selectedNiveauCode != null && effectiveSerieCode != null && value == null) 
+                  validator: (value) => (_selectedNiveauCode != null && effectiveSerieCode != null && value == null) // Correction: _selectedNiveauCode
                                        ? 'Champ requis' 
                                        : null,
                 ),
