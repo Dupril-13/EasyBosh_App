@@ -23,8 +23,9 @@ dependencies:
   flutter_dotenv: ^6.0.0
 
   # State Management & Navigation
-  go_router: ^14.2.0
-  flutter_riverpod: ^2.4.9
+  go_router: ^16.2.4
+  flutter_riverpod: ^3.0.0
+  riverpod_annotation: ^3.0.0 # Ajouté pour la génération de code Riverpod
 
   # Data Models
   equatable: ^2.0.5
@@ -46,12 +47,17 @@ dependencies:
   open_filex: # Added
   video_player: ^2.10.0
   audioplayers: ^6.5.1
+  pdfx: ^2.9.2
+  just_audio: ^0.10.5
+  # flutter_riverpod: ^3.0.0 # Déjà présent
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.13.1
+  build_runner: ^2.4.9 # Ajouté pour la génération de code
+  riverpod_generator: ^3.0.0 # Ajouté pour la génération de code Riverpod
 
 flutter:
   uses-material-design: true

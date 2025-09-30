@@ -1,8 +1,11 @@
 import 'dart:typed_data';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // Retiré si non utilisé directement, mais riverpod_annotation l'est
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:easybosh_v2/models/lecon_model.dart';
 import 'package:easybosh_v2/main.dart'; // Pour supabaseClientProvider
+
+part 'lecon_provider.g.dart';
 
 class LeconState {
   final List<LeconModel> lecons;
@@ -23,22 +26,28 @@ class LeconState {
     bool? isLoading,
     String? errorMessage,
     bool setToNullLeconPourEdition = false,
+    bool resetErrorMessage = false, // Ajout pour cohérence
   }) {
     return LeconState(
       lecons: lecons ?? this.lecons,
       leconPourEdition: setToNullLeconPourEdition ? null : (leconPourEdition ?? this.leconPourEdition),
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: resetErrorMessage ? null : (errorMessage ?? this.errorMessage),
     );
   }
 }
 
-class LeconNotifier extends StateNotifier<LeconState> {
-  final SupabaseClient _supabaseClient;
-  static const String _tableName = 'cours'; // NOTE: This seems to be used for lecons
+@Riverpod(keepAlive: true)
+class Lecon extends _$Lecon { // Renommé de LeconNotifier
+  late SupabaseClient _supabaseClient;
+  static const String _tableName = 'cours'; // Conservé tel quel
   static const String _storageBucketName = 'lecons';
 
-  LeconNotifier(this._supabaseClient) : super(LeconState());
+  @override
+  LeconState build() {
+    _supabaseClient = ref.watch(supabaseClientProvider);
+    return LeconState();
+  }
 
   String _getMimeType(String fileName) {
     final extension = fileName.split('.').last.toLowerCase();
@@ -87,17 +96,18 @@ class LeconNotifier extends StateNotifier<LeconState> {
   }
 
   Future<void> chargerLeconPourEdition(int leconId) async {
-    state = state.copyWith(isLoading: true, errorMessage: null, setToNullLeconPourEdition: true);
+    state = state.copyWith(isLoading: true, errorMessage: null, setToNullLeconPourEdition: true, resetErrorMessage: true);
     try {
       final response = await _supabaseClient.from(_tableName).select().eq('id', leconId).single();
-      state = state.copyWith(leconPourEdition: LeconModel.fromMap(response as Map<String, dynamic>), isLoading: false);
+      state = state.copyWith(leconPourEdition: LeconModel.fromMap(response), isLoading: false);
     } catch (e) {
+      print("Erreur chargerLeconPourEdition: $e");
       state = state.copyWith(isLoading: false, errorMessage: "Erreur Supabase (chargerLeconPourEdition): ${e.toString()}");
     }
   }
 
   Future<void> fetchLecons({int? chapitreId}) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, errorMessage: null, resetErrorMessage: true);
     try {
       PostgrestFilterBuilder query = _supabaseClient.from(_tableName).select();
       if (chapitreId != null) query = query.eq('chapitre_id', chapitreId);
@@ -109,12 +119,13 @@ class LeconNotifier extends StateNotifier<LeconState> {
           .toList();
       state = state.copyWith(isLoading: false, lecons: fetchedLecons);
     } catch (e) {
+      print("Erreur fetchLecons: $e");
       state = state.copyWith(isLoading: false, errorMessage: "Erreur Supabase (fetchLecons): ${e.toString()}");
     }
   }
 
   Future<bool> addLecon(LeconModel leconSansOrdreEtSansId, {Uint8List? fileBytes, String? fileName}) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, errorMessage: null, resetErrorMessage: true);
     try {
       if (leconSansOrdreEtSansId.chapitreId == null) {
         throw Exception("chapitreId ne peut pas être null pour ajouter une leçon.");
@@ -123,7 +134,6 @@ class LeconNotifier extends StateNotifier<LeconState> {
       String? finalUrlMedia = leconSansOrdreEtSansId.urlMedia;
       if (fileBytes != null && fileName != null) {
         final String sanitizedFileName = _sanitizeFileName(fileName);
-        // CORRECTED filePathInBucket:
         final filePathInBucket = '${leconSansOrdreEtSansId.chapitreId}/${DateTime.now().millisecondsSinceEpoch}_$sanitizedFileName';
         print("Uploading to Supabase Storage with key: $filePathInBucket");
         await _supabaseClient.storage.from(_storageBucketName).uploadBinary(
@@ -136,7 +146,7 @@ class LeconNotifier extends StateNotifier<LeconState> {
       final existingLeconsGlobalResponse = await _supabaseClient
           .from(_tableName).select('ordre').eq('chapitre_id', leconSansOrdreEtSansId.chapitreId!)
           .order('ordre', ascending: false).limit(1);
-      if ((existingLeconsGlobalResponse as List<dynamic>).isNotEmpty) {
+      if (existingLeconsGlobalResponse.isNotEmpty) {
         final maxOrdre = (existingLeconsGlobalResponse).first['ordre'] as int? ?? 0;
         nouvelOrdreGlobal = maxOrdre + 1;
       }
@@ -147,7 +157,7 @@ class LeconNotifier extends StateNotifier<LeconState> {
           .eq('chapitre_id', leconSansOrdreEtSansId.chapitreId!)
           .eq('type', leconSansOrdreEtSansId.type); 
 
-      if ((existingLeconsForTypeResponse as List<dynamic>).isNotEmpty) {
+      if (existingLeconsForTypeResponse.isNotEmpty) {
         int maxOrdrePourType = 0;
         for (var leconData in existingLeconsForTypeResponse) {
           final ordreParTypeMap = (leconData as Map<String, dynamic>)['ordre_par_type'];
@@ -170,18 +180,14 @@ class LeconNotifier extends StateNotifier<LeconState> {
       );
       
       Map<String, dynamic> leconData = leconModelPourInsertion.toMap();
-      leconData.remove('id');
+      leconData.remove('id'); 
       final currentUser = _supabaseClient.auth.currentUser;
       if (currentUser != null) leconData['created_by'] = currentUser.id;
       else leconData.remove('created_by');
 
       final response = await _supabaseClient.from(_tableName).insert(leconData).select();
 
-      final List<LeconModel> newLeconsList = (response as List)
-          .map((data) => LeconModel.fromMap(data as Map<String, dynamic>))
-          .toList();
-
-      if (newLeconsList.isNotEmpty) {
+      if (response.isNotEmpty) {
         await fetchLecons(chapitreId: leconSansOrdreEtSansId.chapitreId); 
         return true;
       } else {
@@ -195,7 +201,7 @@ class LeconNotifier extends StateNotifier<LeconState> {
   }
 
   Future<bool> updateLecon(LeconModel leconAMettreAJour, {Uint8List? fileBytes, String? fileName}) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, errorMessage: null, resetErrorMessage: true);
     String oldPathToRemove = '';
     try {
       String? finalUrlMedia = leconAMettreAJour.urlMedia;
@@ -213,10 +219,8 @@ class LeconNotifier extends StateNotifier<LeconState> {
       if (fileBytes != null && fileName != null) {
         final String sanitizedFileName = _sanitizeFileName(fileName);
         if (oldUrlMediaFromDb != null && oldUrlMediaFromDb.isNotEmpty) {
-          // Construct the path relative to the bucket for removal
           try {
             final Uri oldUri = Uri.parse(oldUrlMediaFromDb);
-            // The path in the URL after /object/public/bucket_name/
             oldPathToRemove = oldUri.pathSegments.sublist(oldUri.pathSegments.indexOf(_storageBucketName) + 1).join('/');
             if (oldPathToRemove.isNotEmpty) {
                 await _supabaseClient.storage.from(_storageBucketName).remove([oldPathToRemove]);
@@ -226,7 +230,6 @@ class LeconNotifier extends StateNotifier<LeconState> {
              print("Could not parse or remove old file during update ($oldUrlMediaFromDb / $oldPathToRemove): $e");
           }
         }
-        // CORRECTED filePathInBucket:
         final filePathInBucket = '${leconAMettreAJour.chapitreId}/${DateTime.now().millisecondsSinceEpoch}_$sanitizedFileName';
         print("Uploading to Supabase Storage with key: $filePathInBucket");
         await _supabaseClient.storage.from(_storageBucketName).uploadBinary(
@@ -250,7 +253,7 @@ class LeconNotifier extends StateNotifier<LeconState> {
             .eq('chapitre_id', leconAvecValeursMaj.chapitreId!)
             .eq('type', leconAvecValeursMaj.type);
 
-        if ((existingLeconsForTypeResponse as List<dynamic>).isNotEmpty) {
+        if (existingLeconsForTypeResponse.isNotEmpty) {
           int maxOrdrePourType = 0;
           for (var leconData in existingLeconsForTypeResponse) {
             final leconMap = leconData as Map<String, dynamic>;
@@ -273,23 +276,19 @@ class LeconNotifier extends StateNotifier<LeconState> {
         print("Nouvel ordre pour type ${leconAvecValeursMaj.type}: $nouvelOrdrePourType. Map: $updatedOrdreParType");
       }
       
-      final Map<String, dynamic> leconDataForUpdate = leconAvecValeursMaj.toMapForUpdate();
+      final Map<String, dynamic> leconDataForUpdate = leconAvecValeursMaj.toMapForUpdate(); 
       leconDataForUpdate['updated_at'] = DateTime.now().toIso8601String();
 
       final response = await _supabaseClient.from(_tableName)
           .update(leconDataForUpdate).eq('id', leconAvecValeursMaj.id).select();
 
-      final List<LeconModel> updatedLeconsList = (response as List)
-          .map((data) => LeconModel.fromMap(data as Map<String, dynamic>))
-          .toList();
-      
-      if (updatedLeconsList.isNotEmpty) {
+      if (response.isNotEmpty) {
         await fetchLecons(chapitreId: leconAvecValeursMaj.chapitreId);
-        state = state.copyWith(leconPourEdition: updatedLeconsList.first); 
+        state = state.copyWith(leconPourEdition: response.first != null ? LeconModel.fromMap(response.first) : null, isLoading: false); 
         return true;
       } else {
         if(leconAvecValeursMaj.chapitreId != null) await fetchLecons(chapitreId: leconAvecValeursMaj.chapitreId);
-        state = state.copyWith(isLoading: false, errorMessage: "Leçon potentiellement mise à jour, mais confirmation non récupérée. Liste rafraîchie si possible.");
+        state = state.copyWith(isLoading: false, errorMessage: "Leçon potentiellement mise à jour, mais confirmation non récupérée.");
         return false; 
       }
     } catch (e) {
@@ -300,7 +299,7 @@ class LeconNotifier extends StateNotifier<LeconState> {
   }
 
   Future<void> updateLeconsOrder(List<LeconModel> leconsReordonnees, int chapitreId) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, errorMessage: null, resetErrorMessage: true);
     try {
       for (int i = 0; i < leconsReordonnees.length; i++) {
         final lecon = leconsReordonnees[i];
@@ -310,13 +309,14 @@ class LeconNotifier extends StateNotifier<LeconState> {
       }
       await fetchLecons(chapitreId: chapitreId);
     } catch (e) {
+      print("Erreur updateLeconsOrder: $e");
       state = state.copyWith(isLoading: false, errorMessage: "Erreur Supabase (updateLeconsOrder): ${e.toString()}");
-      if (chapitreId != 0) await fetchLecons(chapitreId: chapitreId);
+      await fetchLecons(chapitreId: chapitreId);
     }
   }
 
   Future<void> updateLeconsOrderForType(List<LeconModel> leconsReordonneesDuType, String type, int chapitreId) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, errorMessage: null, resetErrorMessage: true);
     try {
       for (int i = 0; i < leconsReordonneesDuType.length; i++) {
         final lecon = leconsReordonneesDuType[i];
@@ -335,7 +335,7 @@ class LeconNotifier extends StateNotifier<LeconState> {
     } catch (e) {
       print("Erreur Supabase (updateLeconsOrderForType): ${e.toString()}");
       state = state.copyWith(isLoading: false, errorMessage: "Erreur Supabase (updateLeconsOrderForType): ${e.toString()}");
-      if (chapitreId != 0) await fetchLecons(chapitreId: chapitreId);
+      await fetchLecons(chapitreId: chapitreId);
     }
   }
 
@@ -354,7 +354,7 @@ class LeconNotifier extends StateNotifier<LeconState> {
          rawMap.forEach((key, value) {
           if (value is int) {
             updatedOrdreParType[key.toString()] = value;
-          } else if (value is String) {
+          } else if (value is String) { 
             updatedOrdreParType[key.toString()] = int.tryParse(value) ?? 0;
           } else {
             updatedOrdreParType[key.toString()] = 0; 
@@ -381,27 +381,27 @@ class LeconNotifier extends StateNotifier<LeconState> {
   }
 
   Future<bool> deleteLecon(int leconId) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, errorMessage: null, resetErrorMessage: true);
     String pathToRemoveForDebug = 'path_not_set';
     LeconModel? leconASupprimer;
 
     try {
       try {
         leconASupprimer = state.lecons.firstWhere((lec) => lec.id == leconId);
-      } catch (e) {
+      } catch (e) { 
         if (state.leconPourEdition?.id == leconId) {
           leconASupprimer = state.leconPourEdition!;
         }
       }
       
       if (leconASupprimer == null) {
-          final leconData = await _supabaseClient.from(_tableName).select().eq('id', leconId).maybeSingle();
-          if (leconData != null) {
-              leconASupprimer = LeconModel.fromMap(leconData as Map<String, dynamic>);
+          final leconDataFromDb = await _supabaseClient.from(_tableName).select().eq('id', leconId).maybeSingle();
+          if (leconDataFromDb != null) {
+              leconASupprimer = LeconModel.fromMap(leconDataFromDb);
           } else {
               await _supabaseClient.from(_tableName).delete().eq('id', leconId);
               state = state.copyWith(isLoading: false, lecons: state.lecons.where((l) => l.id != leconId).toList());
-              print("Leçon non trouvée localement ou en BDD pour suppression, suppression par ID seulement.");
+              print("Leçon $leconId non trouvée ni localement ni en BDD. Suppression par ID de la BDD tentée.");
               return true; 
           }
       }
@@ -414,35 +414,34 @@ class LeconNotifier extends StateNotifier<LeconState> {
       if (urlMediaASupprimer != null && urlMediaASupprimer.isNotEmpty) {
          try {
             final Uri oldUri = Uri.parse(urlMediaASupprimer);
-            // The path in the URL after /object/public/bucket_name/
             pathToRemoveForDebug = oldUri.pathSegments.sublist(oldUri.pathSegments.indexOf(_storageBucketName) + 1).join('/');
             if (pathToRemoveForDebug.isNotEmpty) {
                 await _supabaseClient.storage.from(_storageBucketName).remove([pathToRemoveForDebug]);
                 print("Successfully removed from storage: $pathToRemoveForDebug");
             }
           } catch (e) {
-             print("Could not parse or remove old file during delete ($urlMediaASupprimer / $pathToRemoveForDebug): $e");
+             print("Could not parse or remove file from storage during delete ($urlMediaASupprimer / $pathToRemoveForDebug): $e");
           }
       }
 
       if (chapitreIdConcerne != null && chapitreIdConcerne != 0) { 
           await fetchLecons(chapitreId: chapitreIdConcerne);
       } else {
-          state = state.copyWith(isLoading: false, lecons: state.lecons.where((l) => l.id != leconId).toList());
-          if (state.leconPourEdition?.id == leconId) {
-             state = state.copyWith(setToNullLeconPourEdition: true);
-          }
+          state = state.copyWith(
+            isLoading: false, 
+            lecons: state.lecons.where((l) => l.id != leconId).toList(),
+            setToNullLeconPourEdition: state.leconPourEdition?.id == leconId
+          );
       }
       return true;
     } catch (e) {
       print("Error in deleteLecon (path attempt: $pathToRemoveForDebug): ${e.toString()}");
       state = state.copyWith(isLoading: false, errorMessage: "Erreur Supabase (deleteLecon): ${e.toString()}");
+      if (leconASupprimer?.chapitreId != null) {
+        await fetchLecons(chapitreId: leconASupprimer!.chapitreId);
+      }
       return false;
     }
   }
 }
 
-final leconProvider = StateNotifierProvider<LeconNotifier, LeconState>((ref) {
-  final supabaseClient = ref.watch(supabaseClientProvider);
-  return LeconNotifier(supabaseClient);
-});

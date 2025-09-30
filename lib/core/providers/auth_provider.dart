@@ -1,7 +1,11 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // Ajout pour Provider
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase; // Alias pour éviter conflit avec UserModel
 import '../../models/user_model.dart';
 import '../config/app_config.dart';
+
+part 'auth_provider.g.dart';
 
 /// État d'authentification
 sealed class AuthState {}
@@ -17,56 +21,47 @@ class AuthError extends AuthState {
   AuthError(this.message);
 }
 
-/// Provider pour l'état d'authentification
-final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier();
-});
-
-/// Provider pour l'utilisateur courant
-final currentUserProvider = Provider<UserModel?>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return authState is AuthAuthenticated ? authState.user : null;
-});
-
 /// Notifier pour gérer l'authentification
-class AuthNotifier extends StateNotifier<AuthState> {
-  late final SupabaseClient _supabase;
+@Riverpod(keepAlive: true)
+class Auth extends _$Auth { // Changé de AuthNotifier à Auth pour la convention, étend _$Auth
+  late final supabase.SupabaseClient _supabase;
   UserModel? _currentUser;
+  StreamSubscription<supabase.AuthState>? _authStateSubscription;
 
-  AuthNotifier() : super(AuthLoading()) {
-    _supabase = Supabase.instance.client;
-    _initialize();
-  }
-
-  /// Initialisation de l'authentification
-  Future<void> _initialize() async {
-    try {
-      _supabase.auth.onAuthStateChange.listen((data) {
-        _handleAuthStateChange(data.session);
-      });
-      final session = _supabase.auth.currentSession;
-      await _handleAuthStateChange(session);
-    } catch (e) {
-      state = AuthError('Erreur d\'initialisation: $e');
+  @override
+  AuthState build() {
+    _supabase = supabase.Supabase.instance.client;
+    _initialize(); // Lance l'écouteur
+    
+    final currentSupabaseSession = _supabase.auth.currentSession;
+    if (currentSupabaseSession != null && currentSupabaseSession.user != null) {
+      return AuthLoading(); 
     }
+    return AuthUnauthenticated(); 
   }
 
-  Future<void> _handleAuthStateChange(Session? session) async {
-    print("[AUTH_PROVIDER] _handleAuthStateChange: Received session is ${session == null ? 'NULL' : 'NOT NULL (User ID: ${session.user?.id})'}");
+  Future<void> _initialize() async {
+    await _authStateSubscription?.cancel();
+    _authStateSubscription = _supabase.auth.onAuthStateChange.listen((data) {
+      _handleAuthStateChange(data.session);
+    });
+    ref.onDispose(() {
+      _authStateSubscription?.cancel();
+    });
+  }
 
+  Future<void> _handleAuthStateChange(supabase.Session? session) async {
     if (session == null || session.user == null) { 
       _currentUser = null;
       state = AuthUnauthenticated();
-      print("[AUTH_PROVIDER] _handleAuthStateChange: Setting state to AuthUnauthenticated");
       return;
     }
     
     final userId = session.user!.id;
-    final userEmail = session.user!.email ?? 'fallback@example.com'; // Fallback, though email should always exist for a logged-in user
+    final userEmail = session.user!.email ?? 'fallback@example.com'; 
     final userEmailVerified = session.user!.emailConfirmedAt != null;
 
     try {
-      print("[AUTH_PROVIDER] _handleAuthStateChange: Fetching user data from 'profiles' for ID $userId...");
       final userData = await _supabase
           .from('profiles')
           .select()
@@ -74,26 +69,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
           .maybeSingle();
 
       if (userData != null) {
-        print("[AUTH_PROVIDER] _handleAuthStateChange: User data FOUND from 'profiles' for ID $userId. Data: $userData");
         _currentUser = UserModel.fromMap(
           userData, 
           emailFromSession: userEmail, 
           emailVerifiedFromSession: userEmailVerified
         );
-        print("[AUTH_PROVIDER] _handleAuthStateChange: UserModel created. Role is: ${_currentUser?.role}"); // DEBUG LOG ADDED
         state = AuthAuthenticated(_currentUser!);
-        print("[AUTH_PROVIDER] _handleAuthStateChange: Setting state to AuthAuthenticated for ${_currentUser!.email}");
       } else {
-        print("[AUTH_PROVIDER] _handleAuthStateChange: User data NOT FOUND in 'profiles' for ID $userId.");
         _currentUser = null;
-        state = AuthError('Données utilisateur introuvables dans \'profiles\' pour ID $userId');
-        print("[AUTH_PROVIDER] _handleAuthStateChange: Setting state to AuthError (Données utilisateur introuvables dans \'profiles\')");
+        state = AuthError('Données utilisateur (profil) introuvables pour ID $userId. L\'utilisateur est authentifié mais le profil est manquant.');
       }
     } catch (e, stackTrace) {
       print("[AUTH_PROVIDER] _handleAuthStateChange: EXCEPTION while processing user data for ID $userId: $e");
       print(stackTrace);
-      state = AuthError('Erreur lors du traitement des données de \'profiles\' pour ID $userId: $e');
-      print("[AUTH_PROVIDER] _handleAuthStateChange: Setting state to AuthError (Exception on processing)");
+      state = AuthError('Erreur lors du traitement des données de profil pour ID $userId: $e');
     }
   }
 
@@ -101,19 +90,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String email,
     required String password,
   }) async {
+    state = AuthLoading();
     try {
-      state = AuthLoading();
       final response = await _supabase.auth.signInWithPassword(
         email: email.trim(),
         password: password,
       );
       if (response.session == null) {
-        throw Exception('Échec de la connexion');
+         throw Exception('Échec de la connexion, session non établie.');
       }
-    } on AuthException catch (e) {
+    } on supabase.AuthException catch (e) {
       state = AuthError(_getAuthErrorMessage(e));
     } catch (e) {
-      state = AuthError('Erreur de connexion: $e');
+      state = AuthError('Erreur de connexion: ${e.toString()}');
     }
   }
 
@@ -126,109 +115,77 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String? niveauCode,
     String? serieCode,
   }) async {
+    state = AuthLoading();
     try {
-      state = AuthLoading();
       _validateSignUpData(email, password, nom, prenom, role, niveauCode, serieCode);
-
       final response = await _supabase.auth.signUp(
         email: email.trim(),
         password: password,
       );
-
-      if (response.user == null) {
+      if (response.user == null || response.user!.email == null) {
         throw Exception('Échec de la création du compte d\'authentification Supabase.');
       }
-      if (response.user!.email == null) {
-        throw Exception('Email manquant dans la réponse d\'authentification Supabase après inscription.');
-      }
-
-      final userModel = UserModel(
+      final userModelForProfile = UserModel(
         uid: response.user!.id,
-        email: response.user!.email!, // Garanti non null par la vérification précédente
+        email: response.user!.email!,
         role: role,
         nom: nom.trim(),
         prenom: prenom.trim(),
         niveauCode: niveauCode,
         serieCode: serieCode,
-        emailVerified: response.user!.emailConfirmedAt != null,
+        emailVerified: response.user!.emailConfirmedAt != null, 
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        actif: true,
+        actif: true, 
       );
-      
-      await _supabase.from('profiles').insert(userModel.toMapForProfiles());
-
-    } on AuthException catch (e) {
+      await _supabase.from('profiles').insert(userModelForProfile.toMapForProfiles());
+    } on supabase.AuthException catch (e) {
       state = AuthError(_getAuthErrorMessage(e));
     } catch (e) {
-      state = AuthError('Erreur d\'inscription: $e');
+      state = AuthError('Erreur d\'inscription: ${e.toString()}');
     }
   }
 
   Future<void> signInWithGoogle() async {
+    state = AuthLoading();
     try {
-      state = AuthLoading();
-      await _supabase.auth.signInWithOAuth(OAuthProvider.google);
-    } on AuthException catch (e) {
+      await _supabase.auth.signInWithOAuth(supabase.OAuthProvider.google);
+    } on supabase.AuthException catch (e) {
       state = AuthError(_getAuthErrorMessage(e));
     } catch (e) {
-      state = AuthError('Erreur de connexion Google: $e');
+      state = AuthError('Erreur de connexion Google: ${e.toString()}');
     }
   }
 
   Future<void> signOut() async {
     try {
       await _supabase.auth.signOut();
-      _currentUser = null;
-      state = AuthUnauthenticated();
     } catch (e) {
-      state = AuthError('Erreur de déconnexion: $e');
+      state = AuthError('Erreur de déconnexion: ${e.toString()}');
     }
   }
 
   Future<void> updateProfile(UserModel updatedUser) async {
+    final authenticatedUserId = _supabase.auth.currentUser?.id;
+    if (authenticatedUserId == null || authenticatedUserId != updatedUser.uid) {
+       state = AuthError('Action non autorisée pour la mise à jour du profil.');
+       return;
+    }
+    state = AuthLoading();
     try {
-      if (_currentUser == null) {
-        throw Exception('Aucun utilisateur connecté pour la mise à jour du profil.');
-      }
-
-      final userForDb = updatedUser.copyWith(
-        updatedAt: DateTime.now(),
-        // Assurez-vous que l'email n'est pas accidentellement modifié ici s'il ne doit pas l'être
-        // email: _currentUser!.email, // Conserver l'email original si non modifiable
-      );
-      
+      final userForDb = updatedUser.copyWith(updatedAt: DateTime.now());
       Map<String, dynamic> profileDataToUpdate = userForDb.toMapForProfiles();
-      // Retirer les champs qui ne doivent pas être envoyés ou qui sont gérés par la DB lors d'un update simple
-      profileDataToUpdate.remove('id'); // L'ID est utilisé dans .eq() et ne doit pas être dans le payload de mise à jour
-      profileDataToUpdate.remove('created_at'); // Généralement non modifié
-      // Si l'email ne peut pas être modifié via cette méthode, retirez-le aussi.
-      // La map `toMapForProfiles` ne contient déjà pas l'email.
-
-      // Permettre la mise à null explicite de certains champs si nécessaire
-      // Par exemple, si on veut pouvoir vider le numéro de téléphone :
-      if (updatedUser.telephone == null && _currentUser!.telephone != null) {
-        profileDataToUpdate['phone_number'] = null;
+      profileDataToUpdate.remove('id'); 
+      profileDataToUpdate.remove('created_at');
+      profileDataToUpdate.remove('email');
+      await _supabase.from('profiles').update(profileDataToUpdate).eq('id', authenticatedUserId); 
+      await _handleAuthStateChange(_supabase.auth.currentSession); 
+      if (state is! AuthAuthenticated && state is! AuthError) {
+        state = AuthError('Mise à jour du profil effectuée mais impossible de confirmer le nouvel état.');
       }
-      if (updatedUser.niveauCode == null && _currentUser!.niveauCode != null) {
-        profileDataToUpdate['student_level_code'] = null;
-      }
-       if (updatedUser.serieCode == null && _currentUser!.serieCode != null) {
-        profileDataToUpdate['student_serie_code'] = null;
-      }
-       if (updatedUser.dateNaissance == null && _currentUser!.dateNaissance != null) {
-        profileDataToUpdate['date_of_birth'] = null;
-      }
-
-      await _supabase
-          .from('profiles')
-          .update(profileDataToUpdate)
-          .eq('id', _currentUser!.uid); 
-
-      _currentUser = userForDb; 
-      state = AuthAuthenticated(_currentUser!);
     } catch (e) {
-      state = AuthError('Erreur de mise à jour du profil: $e');
+      state = AuthError('Erreur de mise à jour du profil: ${e.toString()}');
+      await _handleAuthStateChange(_supabase.auth.currentSession);
     }
   }
 
@@ -236,23 +193,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final user = _supabase.auth.currentUser;
       if (user?.email == null) {
-        throw Exception('Aucun utilisateur connecté pour renvoyer l\'email de vérification.');
+        throw Exception('Aucun utilisateur connecté ou email manquant.');
       }
-      await _supabase.auth.resend(email: user!.email!, type: OtpType.signup);
-    } on AuthException catch (e) {
+      await _supabase.auth.resend(email: user!.email!, type: supabase.OtpType.signup);
+    } on supabase.AuthException catch (e) {
       throw Exception(_getAuthErrorMessage(e));
     } catch (e) {
-      throw Exception('Erreur lors du renvoi de l\'email de vérification: $e');
+      throw Exception('Erreur lors du renvoi de l\'email de vérification: ${e.toString()}');
     }
   }
 
   Future<void> resetPassword(String email) async {
     try {
       await _supabase.auth.resetPasswordForEmail(email.trim());
-    } on AuthException catch (e) {
+    } on supabase.AuthException catch (e) {
       throw Exception(_getAuthErrorMessage(e));
     } catch (e) {
-      throw Exception('Erreur de réinitialisation du mot de passe: $e');
+      throw Exception('Erreur de réinitialisation du mot de passe: ${e.toString()}');
     }
   }
 
@@ -260,32 +217,37 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String currentPassword,
     required String newPassword,
   }) async {
+    state = AuthLoading();
     try {
       final user = _supabase.auth.currentUser;
       if (user?.email == null) {
-        throw Exception('Aucun utilisateur connecté pour changer le mot de passe.');
+        throw Exception('Aucun utilisateur connecté.');
       }
       await _supabase.auth.signInWithPassword(email: user!.email!, password: currentPassword);
-      await _supabase.auth.updateUser(UserAttributes(password: newPassword));
-    } on AuthException catch (e) {
-      throw Exception(_getAuthErrorMessage(e));
+      await _supabase.auth.updateUser(supabase.UserAttributes(password: newPassword));
+      // Rafraîchir l'état ou informer du succès
+    } on supabase.AuthException catch (e) {
+       state = AuthError(_getAuthErrorMessage(e));
     } catch (e) {
-      throw Exception('Erreur de changement de mot de passe: $e');
+       state = AuthError('Erreur de changement de mot de passe: ${e.toString()}');
     }
   }
 
   Future<void> deleteAccount() async {
+    state = AuthLoading();
     try {
-      if (_currentUser == null) {
-        throw Exception('Aucun utilisateur connecté pour supprimer le compte.');
+      final authenticatedUserId = _supabase.auth.currentUser?.id;
+      if (authenticatedUserId == null) {
+        throw Exception('Aucun utilisateur connecté.');
       }
-      await _supabase.from('profiles').delete().eq('id', _currentUser!.uid); 
-      // Considérer la suppression de auth.user via une fonction Edge si nécessaire
-      // await _supabase.auth.admin.deleteUser(_currentUser!.uid); 
-      _currentUser = null;
-      state = AuthUnauthenticated();
+      await _supabase.from('profiles').delete().eq('id', authenticatedUserId); 
+      await _supabase.auth.signOut();
+      _currentUser = null; 
     } catch (e) {
-      throw Exception('Erreur de suppression du compte: $e');
+      await _handleAuthStateChange(_supabase.auth.currentSession);
+      if (state is! AuthError) {
+          state = AuthError('Erreur de suppression du compte: ${e.toString()}');
+      }
     }
   }
 
@@ -310,7 +272,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (!AppConfig.roles.contains(role)) {
       throw Exception('Rôle invalide: $role');
     }
-
     if (role == 'etudiant') {
       if (niveauCode == null || niveauCode.trim().isEmpty) {
         throw Exception('Le niveau est obligatoire pour les étudiants.');
@@ -325,34 +286,31 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  String _getAuthErrorMessage(AuthException error) {
-    // ... (inchangé)
-    switch (error.message) {
-      case 'Invalid login credentials':
-        return 'Email ou mot de passe incorrect';
-      case 'User already registered':
-        return 'Un compte existe déjà avec cet email';
-      case 'Email not confirmed':
-        return 'Veuillez vérifier votre email avant de vous connecter';
-      case 'Invalid email':
-        return 'Adresse email invalide';
-      case 'Password should be at least 6 characters':
-        return 'Le mot de passe doit contenir au moins 6 caractères';
-      case 'Signup requires a valid password':
-        return 'Mot de passe requis pour l\'inscription';
-      case 'User not found':
-        return 'Aucun compte trouvé avec cet email';
-      case 'Too many requests':
-        return 'Trop de tentatives. Veuillez réessayer plus tard';
-      default:
-        return error.message;
-    }
+  String _getAuthErrorMessage(supabase.AuthException error) {
+    if (error.message.contains('Invalid login credentials')) return 'Email ou mot de passe incorrect.';
+    if (error.message.contains('User already registered')) return 'Un compte existe déjà avec cet email.';
+    if (error.message.contains('Email not confirmed')) return 'Veuillez vérifier votre email avant de vous connecter.';
+    if (error.message.contains('Unable to validate email address: invalid format')) return AppConfig.invalidEmailMessage;
+    if (error.message.contains('Password should be at least 6 characters')) return AppConfig.passwordTooShortMessage;
+    if (error.message.contains('Signup requires a valid password')) return 'Mot de passe requis pour l\'inscription.';
+    return error.message;
   }
 
   UserModel? get currentUser => _currentUser;
-  bool get isAuthenticated => _currentUser != null;
-  bool get isEtudiant => _currentUser?.isEtudiant ?? false;
-  bool get isEnseignant => _currentUser?.isEnseignant ?? false;
-  bool get isAdmin => _currentUser?.isAdmin ?? false;
-  bool get isStaff => _currentUser?.isStaff ?? false;
+  bool get isAuthenticated => state is AuthAuthenticated;
+  bool get isEtudiant => (state as AuthAuthenticated?)?.user.isEtudiant ?? false;
+  bool get isEnseignant => (state as AuthAuthenticated?)?.user.isEnseignant ?? false;
+  bool get isAdmin => (state as AuthAuthenticated?)?.user.isAdmin ?? false;
+  bool get isStaff => (state as AuthAuthenticated?)?.user.isStaff ?? false;
 }
+
+/// Provider pour l'utilisateur courant (UserModel)
+final currentUserProvider = Provider<UserModel?>((ref) {
+  final authState = ref.watch(authProvider); // authProvider est auto-généré
+  if (authState is AuthAuthenticated) {
+    return authState.user;
+  }
+  return null;
+});
+
+// L'ancien authStateProvider est supprimé car le générateur va créer authProvider.

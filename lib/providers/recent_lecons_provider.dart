@@ -1,12 +1,15 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/recent_lecon_info_model.dart';
 import '../models/lecon_model.dart';
 import '../models/chapitre_model.dart';
 import '../models/matiere_model.dart';
-import 'user_chapter_progress_provider.dart'; // For supabaseClientProvider & currentUserIdProvider
+import '../main.dart'; // For supabaseClientProvider
+import '../core/providers/auth_provider.dart'; // For authProvider
 
-const int _recentLeconsLimit = 3; // MODIFIÉ: Max number of recent lecons to show
+part 'recent_lecons_provider.g.dart';
+
+const int _recentLeconsLimit = 3;
 
 class RecentLeconsState {
   final List<RecentLeconInfoModel> recentLecons;
@@ -33,17 +36,36 @@ class RecentLeconsState {
   }
 }
 
-class RecentLeconsNotifier extends StateNotifier<RecentLeconsState> {
-  final SupabaseClient _supabaseClient;
-  final String? _userId;
-  final Ref _ref; // To read other providers if necessary
+@Riverpod(keepAlive: true)
+class RecentLecons extends _$RecentLecons {
+  late SupabaseClient _supabaseClient;
+  late String? _userId;
 
-  RecentLeconsNotifier(this._supabaseClient, this._userId, this._ref)
-      : super(RecentLeconsState());
+  @override
+  RecentLeconsState build() {
+    _supabaseClient = ref.watch(supabaseClientProvider);
+    final authState = ref.watch(authProvider);
+
+    if (authState is AuthAuthenticated) {
+      _userId = authState.user.uid;
+    } else {
+      _userId = null;
+    }
+
+    // Fetch lecons if a user is logged in (or becomes logged in).
+    // fetchRecentLecons handles the case where _userId is null.
+    fetchRecentLecons();
+
+    // Initial state. isLoading might be true if _userId is not null and we haven't loaded yet.
+    return RecentLeconsState(isLoading: _userId != null && state.recentLecons.isEmpty && state.errorMessage == null);
+  }
 
   Future<void> fetchRecentLecons() async {
     if (_userId == null) {
-      state = state.copyWith(recentLecons: [], isLoading: false);
+      // Ensure state is cleared if user logs out or is not available
+      if (state.recentLecons.isNotEmpty || state.isLoading || state.errorMessage != null) {
+        state = state.copyWith(recentLecons: [], isLoading: false, clearErrorMessage: true);
+      }
       return;
     }
     state = state.copyWith(isLoading: true, clearErrorMessage: true);
@@ -167,17 +189,18 @@ class RecentLeconsNotifier extends StateNotifier<RecentLeconsState> {
         print("[markLeconAsViewed] Nouvelle progression insérée avec succès.");
       }
       
+      // Optionnel: Déclencher un rafraîchissement des leçons récentes si nécessaire
+      // await fetchRecentLecons(); 
+
       print("[markLeconAsViewed] Lecon $leconId marquée comme vue à $now pour user $_userId.");
 
     } catch (e, stackTrace) {
       print("[markLeconAsViewed] ERREUR lors du marquage de la leçon $leconId comme vue: $e");
       print("[markLeconAsViewed] StackTrace: $stackTrace");
+      // Peut-être définir un état d'erreur temporaire si cette action a une UI directe
     }
   }
 }
 
-final recentLeconsProvider = StateNotifierProvider<RecentLeconsNotifier, RecentLeconsState>((ref) {
-  final supabaseClient = ref.watch(supabaseClientProvider);
-  final userId = ref.watch(currentUserIdProvider);
-  return RecentLeconsNotifier(supabaseClient, userId, ref);
-});
+// L'ancienne définition de recentLeconsProvider est supprimée.
+// Le générateur créera `recentLeconsProvider`.

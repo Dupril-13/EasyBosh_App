@@ -1,6 +1,9 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/serie_model.dart';
+import '../main.dart'; // For supabaseClientProvider
+
+part 'serie_provider.g.dart';
 
 // État pour le provider des séries
 class SerieState {
@@ -29,23 +32,30 @@ class SerieState {
 }
 
 // Notifier pour gérer la logique de l'état des séries
-class SerieNotifier extends StateNotifier<SerieState> {
-  final SupabaseClient _supabaseClient;
+@Riverpod(keepAlive: true)
+class Serie extends _$Serie {
+  late SupabaseClient _supabaseClient;
 
-  SerieNotifier(this._supabaseClient) : super(SerieState()) {
+  @override
+  SerieState build() {
+    _supabaseClient = ref.watch(supabaseClientProvider);
     fetchSeries(); // Charger initialement les séries
+    return SerieState(isLoading: true); 
   }
 
   Future<void> fetchSeries() async {
-    state = state.copyWith(isLoading: true, resetErrorMessage: true);
+    // Assurer que isLoading est mis à true au début de la récupération, même si appelé plusieurs fois
+    if (!state.isLoading || state.errorMessage != null) { // Vérifier aussi errorMessage pour reset en cas de re-fetch après erreur
+        state = state.copyWith(isLoading: true, resetErrorMessage: true);
+    }
     try {
       final List<dynamic> response = await _supabaseClient
           .from('series')
           .select()
-          .order('nom', ascending: true); // Ordonner par 'nom' ou un champ d'ordre spécifique
+          .order('nom', ascending: true); 
 
       final seriesData = response.map((item) => SerieModel.fromMap(item as Map<String, dynamic>)).toList();
-      state = state.copyWith(series: seriesData, isLoading: false);
+      state = state.copyWith(series: seriesData, isLoading: false, resetErrorMessage: true);
     } on PostgrestException catch (e) {
       print("Erreur Postgrest fetchSeries: ${e.message}");
       state = state.copyWith(errorMessage: "Erreur de base de données: ${e.message}", isLoading: false);
@@ -56,8 +66,5 @@ class SerieNotifier extends StateNotifier<SerieState> {
   }
 }
 
-// Provider Riverpod
-final serieProvider = StateNotifierProvider<SerieNotifier, SerieState>((ref) {
-  final supabaseClient = Supabase.instance.client;
-  return SerieNotifier(supabaseClient);
-});
+// L'ancien "final serieProvider = StateNotifierProvider..." est supprimé.
+// Le générateur créera `serieProvider`.

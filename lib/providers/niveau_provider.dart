@@ -1,6 +1,9 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/niveau_model.dart';
+import '../main.dart'; // For supabaseClientProvider
+
+part 'niveau_provider.g.dart';
 
 // État pour le provider des niveaux
 class NiveauState {
@@ -17,7 +20,6 @@ class NiveauState {
   NiveauState copyWith({
     List<NiveauModel>? niveaux,
     bool? isLoading,
-    // Permet de explicitement mettre à null le message d'erreur
     String? errorMessage,
     bool? resetErrorMessage = false,
   }) {
@@ -30,23 +32,33 @@ class NiveauState {
 }
 
 // Notifier pour gérer la logique de l'état des niveaux
-class NiveauNotifier extends StateNotifier<NiveauState> {
-  final SupabaseClient _supabaseClient;
+@Riverpod(keepAlive: true) // Ou simplement @riverpod si keepAlive n'est pas critique
+class Niveau extends _$Niveau {
+  late SupabaseClient _supabaseClient;
 
-  NiveauNotifier(this._supabaseClient) : super(NiveauState()) {
+  @override
+  NiveauState build() {
+    _supabaseClient = ref.watch(supabaseClientProvider);
     fetchNiveaux(); // Charger initialement les niveaux
+    // L'état initial peut indiquer un chargement si fetchNiveaux est asynchrone
+    // et ne met pas à jour l'état immédiatement de manière synchrone avant de retourner.
+    return NiveauState(isLoading: true); 
   }
 
   Future<void> fetchNiveaux() async {
-    state = state.copyWith(isLoading: true, resetErrorMessage: true);
+    // Si build retourne isLoading:true, on peut éviter de le remettre ici
+    // ou s'assurer que l'état initial dans build est NiveauState() et ici state.copyWith(isLoading: true...)
+    if (!state.isLoading) {
+        state = state.copyWith(isLoading: true, resetErrorMessage: true);
+    }
     try {
       final List<dynamic> response = await _supabaseClient
           .from('niveaux')
           .select()
-          .order('ordre', ascending: true); // Ordonner par 'ordre' ou 'nom' selon préférence
+          .order('ordre', ascending: true);
 
       final niveaux = response.map((item) => NiveauModel.fromMap(item as Map<String, dynamic>)).toList();
-      state = state.copyWith(niveaux: niveaux, isLoading: false);
+      state = state.copyWith(niveaux: niveaux, isLoading: false, resetErrorMessage: true);
     } on PostgrestException catch (e) {
       print("Erreur Postgrest fetchNiveaux: ${e.message}");
       state = state.copyWith(errorMessage: "Erreur de base de données: ${e.message}", isLoading: false);
@@ -57,8 +69,5 @@ class NiveauNotifier extends StateNotifier<NiveauState> {
   }
 }
 
-// Provider Riverpod
-final niveauProvider = StateNotifierProvider<NiveauNotifier, NiveauState>((ref) {
-  final supabaseClient = Supabase.instance.client;
-  return NiveauNotifier(supabaseClient);
-});
+// L'ancien "final niveauProvider = StateNotifierProvider..." est supprimé.
+// Le générateur créera `niveauProvider`.

@@ -1,10 +1,9 @@
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Provider & Listenable
-import '../../providers/auth_provider.dart'; 
+// Provider & AuthState
+import '../../core/providers/auth_provider.dart'; 
 
 // Pages d'authentification
 import '../../pages/auth/get_started_page.dart';
@@ -14,8 +13,8 @@ import '../../pages/auth/verification_page.dart';
 
 // Pages Étudiant
 import '../../pages/student/cours_page.dart';
-import '../../pages/student/cours/matiere_detail_page.dart'; // Added import
-import '../../models/matiere_model.dart'; // Added import
+import '../../pages/student/cours/matiere_detail_page.dart'; 
+import '../../models/matiere_model.dart'; 
 import '../../pages/student/epreuves_page.dart';
 import '../../pages/student/quiz_page.dart';
 import '../../pages/student/statistiques_page.dart';
@@ -46,10 +45,10 @@ import '../../pages/staff/admin/manage_admins_page.dart';
 import '../../pages/staff/admin/activity_logs_page.dart';
 import '../../pages/staff/admin/admin_profile_page.dart';
 import '../../pages/staff/teacher/teacher_dashboard_page.dart';
-import '../../pages/staff/teacher/manage_chapitres_page.dart'; 
+// import '../../pages/staff/teacher/manage_chapitres_page.dart'; // Commenté si non utilisé pour l'instant
 import '../../pages/staff/teacher/edit_chapitre_page.dart';   
-import '../../pages/staff/teacher/manage_lecons_page.dart';    
-import '../../pages/staff/teacher/edit_lecon_page.dart';      
+// import '../../pages/staff/teacher/manage_lecons_page.dart';    // Commenté si non utilisé pour l'instant
+// import '../../pages/staff/teacher/edit_lecon_page.dart';      // Commenté si non utilisé pour l'instant
 import '../../pages/staff/teacher/manage_exams_page.dart';
 import '../../pages/staff/teacher/manage_quizzes_page.dart';
 import '../../pages/staff/teacher/teacher_analytics_page.dart';
@@ -58,22 +57,29 @@ import '../../pages/staff/teacher/teacher_profile_page.dart';
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authNotifier = ref.watch(authProvider.notifier);
-  final authListenable = AuthStateListenable(authNotifier);
+  // ValueNotifier pour écouter les changements d'état d'authentification.
+  // La valeur elle-même n'est pas cruciale, seul le fait qu'elle change l'est.
+  final authStateNotifierForGoRouter = ValueNotifier<Object?>(null);
+  
+  ref.listen(authProvider, (previousState, newState) {
+    authStateNotifierForGoRouter.value = newState; // Déclenche le ValueNotifier
+  });
 
   ref.onDispose(() {
-    authListenable.dispose();
+    authStateNotifierForGoRouter.dispose();
   });
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/get-started', // MODIFIED: Start with Staff Login page
+    initialLocation: '/staff-login',
     debugLogDiagnostics: true,
-    refreshListenable: authListenable,
+    refreshListenable: authStateNotifierForGoRouter, // Utilise le ValueNotifier
 
     redirect: (BuildContext context, GoRouterState state) {
-      final bool isLoggedIn = authNotifier.isLoggedIn;
-      final String? userRole = authNotifier.userRole;
+      final authState = ref.read(authProvider); // Lire l'état actuel de authProvider
+      
+      final bool isLoggedIn = authState is AuthAuthenticated;
+      final String? userRole = (authState is AuthAuthenticated) ? authState.user.role : null;
       final String currentLocation = state.uri.path;
 
       const List<String> publicAuthPaths = [
@@ -88,34 +94,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final bool isOnVerificationPath = currentLocation == verificationPath;
 
       if (!isLoggedIn) {
-        // Si l'utilisateur n'est pas connecté et n'est pas sur une page d'authentification publique
-        // ou de vérification, le laisser continuer si c'est /get-started, sinon rediriger vers /get-started.
         if (!isOnPublicAuthPath && !isOnVerificationPath) {
           return '/get-started'; 
         }
       } else {
-        // Utilisateur connecté
         if (currentLocation == '/get-started' || currentLocation == '/auth/login' || currentLocation == '/auth/signup') {
-          // Si l'utilisateur connecté essaie d'accéder à get-started, login ou signup,
-          // le rediriger vers son tableau de bord respectif.
           if (userRole == 'admin') return '/admin/dashboard';
           if (userRole == 'teacher') return '/teacher/dashboard';
           if (userRole == 'student') return '/cours';
-          // Fallback si le rôle est inconnu mais connecté (ne devrait pas arriver)
-          return '/get-started'; // Ou une page d'erreur/staff-login
+          return '/get-started';
         }
-        // Redirections basées sur le rôle pour les accès non autorisés
         if (userRole == 'student' && (currentLocation.startsWith('/admin') || currentLocation.startsWith('/teacher') || currentLocation == '/staff-login')) {
-          return '/cours'; // Les étudiants ne peuvent pas accéder aux pages admin/teacher/staff-login
+          return '/cours';
         }
         if (userRole == 'teacher' && (currentLocation.startsWith('/admin') || currentLocation == '/staff-login')) {
-          return '/teacher/dashboard'; // Les enseignants ne peuvent pas accéder aux pages admin/staff-login
+          return '/teacher/dashboard';
         }
         if (userRole == 'admin' && currentLocation == '/staff-login') {
-            return '/admin/dashboard'; // L'admin connecté ne devrait pas voir staff-login
+            return '/admin/dashboard';
         }
       }
-      return null; // Pas de redirection nécessaire
+      return null; 
     },
     routes: <RouteBase>[
       GoRoute(

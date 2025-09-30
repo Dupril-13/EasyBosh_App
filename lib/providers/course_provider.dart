@@ -1,7 +1,10 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/course_model.dart';
-import './auth_provider.dart'; // Pour obtenir l'ID de l'utilisateur connecté
+import '../main.dart'; // For supabaseClientProvider
+import '../core/providers/auth_provider.dart'; // For authProvider and AuthState
+
+part 'course_provider.g.dart';
 
 // État pour le CourseNotifier
 class CourseState {
@@ -19,33 +22,44 @@ class CourseState {
     List<CourseModel>? courses,
     bool? isLoading,
     String? errorMessage,
+    bool? resetErrorMessage = false, // Ajouté pour cohérence
   }) {
     return CourseState(
       courses: courses ?? this.courses,
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: resetErrorMessage == true ? null : errorMessage ?? this.errorMessage,
     );
   }
 }
 
-class CourseNotifier extends StateNotifier<CourseState> {
-  final SupabaseClient _supabaseClient;
-  final String? _userId; // ID de l'enseignant connecté
+@Riverpod(keepAlive: true)
+class Course extends _$Course {
+  late SupabaseClient _supabaseClient;
+  String? _userId;
 
-  CourseNotifier(this._supabaseClient, this._userId) : super(CourseState(isLoading: true)) { // isLoading à true au début
-    if (_userId != null) {
-      fetchCoursesCreatedByCurrentUser();
+  @override
+  CourseState build() {
+    _supabaseClient = ref.watch(supabaseClientProvider);
+    final authState = ref.watch(authProvider);
+
+    if (authState is AuthAuthenticated) {
+      _userId = authState.user.uid;
+      // Déclencher le fetch ici si l'utilisateur est authentifié
+      // fetchCoursesCreatedByCurrentUser est async, donc build retournera l'état initial avant la fin du fetch.
+      fetchCoursesCreatedByCurrentUser(); 
+      return CourseState(isLoading: true); // Indiquer le chargement initial
     } else {
-      state = state.copyWith(isLoading: false, errorMessage: "Utilisateur non identifié pour charger les cours.");
+      _userId = null;
+      return CourseState(isLoading: false, courses: [], errorMessage: "Utilisateur non identifié pour charger les cours.");
     }
   }
 
   Future<void> fetchCoursesByChapter(int chapitreId) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, resetErrorMessage: true);
     try {
       final response = await _supabaseClient
           .from('cours')
-          .select()
+          .select('*, chapitres(*, matieres(*), niveaux(*), series(*))') // Exemple avec données imbriquées
           .eq('chapitre_id', chapitreId)
           .order('ordre', ascending: true);
 
@@ -58,52 +72,54 @@ class CourseNotifier extends StateNotifier<CourseState> {
 
   Future<void> fetchCoursesCreatedByCurrentUser() async {
     if (_userId == null) {
-      state = state.copyWith(isLoading: false, errorMessage: "Aucun utilisateur connecté pour récupérer les cours.");
+      state = state.copyWith(isLoading: false, courses: [], errorMessage: "Aucun utilisateur connecté pour récupérer les cours.");
       return;
     }
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    // Si l'état n'est pas déjà en chargement pour cette opération précise, le mettre.
+    if (!state.isLoading) {
+        state = state.copyWith(isLoading: true, resetErrorMessage: true);
+    }
     try {
       final response = await _supabaseClient
           .from('cours')
-          .select('*, chapitres(*, matieres(*), niveaux(*), series(*))') // Exemple de récupération imbriquée
+          .select('*, chapitres(*, matieres(*), niveaux(*), series(*))')
           .eq('created_by', _userId!) 
           .order('created_at', ascending: false); 
 
       final courses = response.map((data) => CourseModel.fromMap(data)).toList();
       state = state.copyWith(courses: courses, isLoading: false);
     } catch (e) {
-      print("Erreur fetchCoursesCreatedByCurrentUser: $e"); // Pour le débogage
+      print("Erreur fetchCoursesCreatedByCurrentUser: $e");
       state = state.copyWith(isLoading: false, errorMessage: "Erreur de chargement de vos cours: ${e.toString()}");
     }
   }
 
-
   Future<bool> addCourse(CourseModel courseDetails, int chapitreId) async {
     if (_userId == null) {
-      state = state.copyWith(errorMessage: "Action non autorisée: utilisateur non connecté.");
+      state = state.copyWith(errorMessage: "Action non autorisée: utilisateur non connecté.", isLoading: false);
       return false;
     }
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, resetErrorMessage: true);
     try {
       final courseData = courseDetails.copyWith(
         createdBy: _userId,
         chapitreId: chapitreId,
-        // createdAt est géré par la BD, updatedAt aussi au premier ajout (ou via trigger)
       ).toMap();
       
       courseData.remove('id'); 
-      // courseData.remove('created_at'); // Laissé pour être potentiellement géré par le client si besoin
-      // courseData.remove('updated_at');
 
       final response = await _supabaseClient
           .from('cours')
           .insert(courseData)
-          .select('*, chapitres(*, matieres(*), niveaux(*), series(*))') // Récupérer le nouveau cours avec les données imbriquées
+          .select('*, chapitres(*, matieres(*), niveaux(*), series(*))')
           .single();
 
       final newCourse = CourseModel.fromMap(response);
+      // Optimistic update: add to current list or refetch if list is not just "user's courses"
+      // Since this provider is focused on current user's courses via build, we can add it.
+      final currentCourses = List<CourseModel>.from(state.courses);
       state = state.copyWith(
-        courses: [newCourse, ...state.courses], 
+        courses: [newCourse, ...currentCourses], 
         isLoading: false
       );
       return true;
@@ -116,28 +132,24 @@ class CourseNotifier extends StateNotifier<CourseState> {
 
   Future<bool> updateCourse(CourseModel course) async {
      if (_userId == null) {
-      state = state.copyWith(errorMessage: "Action non autorisée: utilisateur non connecté.");
+      state = state.copyWith(errorMessage: "Action non autorisée: utilisateur non connecté.", isLoading: false);
       return false;
     }
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, resetErrorMessage: true);
     try {
-      final courseData = course.copyWith(
-        // updated_at devrait être mis à jour par Supabase via trigger ou default now() on update
-      ).toMap();
-
+      final courseData = course.toMap();
       courseData.remove('created_by');
       courseData.remove('created_at');
       final Map<String, dynamic> updateData = Map.from(courseData);
       updateData.remove('id');
-      // Assurez-vous que updated_at est mis à jour si ce n'est pas automatique en BD
-      // updateData['updated_at'] = DateTime.now().toIso8601String();
+      updateData['updated_at'] = DateTime.now().toIso8601String(); // Explicitly set updated_at
 
       final response = await _supabaseClient
           .from('cours')
           .update(updateData)
           .eq('id', course.id)
-          .eq('created_by', _userId!)
-          .select('*, chapitres(*, matieres(*), niveaux(*), series(*))') // Récupérer le cours mis à jour
+          .eq('created_by', _userId!) // Ensure user can only update their own courses
+          .select('*, chapitres(*, matieres(*), niveaux(*), series(*))')
           .single();
 
       final updatedCourse = CourseModel.fromMap(response);
@@ -155,10 +167,10 @@ class CourseNotifier extends StateNotifier<CourseState> {
 
   Future<bool> deleteCourse(int courseId) async {
     if (_userId == null) {
-      state = state.copyWith(errorMessage: "Action non autorisée: utilisateur non connecté.");
+      state = state.copyWith(errorMessage: "Action non autorisée: utilisateur non connecté.", isLoading: false);
       return false;
     }
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, resetErrorMessage: true);
     try {
       await _supabaseClient
           .from('cours')
@@ -179,8 +191,5 @@ class CourseNotifier extends StateNotifier<CourseState> {
   }
 }
 
-final courseProvider = StateNotifierProvider<CourseNotifier, CourseState>((ref) {
-  final supabaseClient = Supabase.instance.client;
-  final userId = ref.watch(authProvider.select((authState) => authState.supabaseUser?.id));
-  return CourseNotifier(supabaseClient, userId);
-});
+// L'ancien "final courseProvider = StateNotifierProvider..." est supprimé.
+// Le générateur créera `courseProvider`.

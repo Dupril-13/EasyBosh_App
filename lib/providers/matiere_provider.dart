@@ -1,7 +1,9 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:easybosh_v2/models/matiere_model.dart';
-import 'package:easybosh_v2/main.dart'; // Pour supabaseClientProvider
+import 'package:easybosh_v2/main.dart'; // Assurez-vous que supabaseClientProvider est exporté ou accessible
+
+part 'matiere_provider.g.dart';
 
 class MatiereState {
   final bool isLoading;
@@ -28,17 +30,19 @@ class MatiereState {
   }
 }
 
-class MatiereNotifier extends StateNotifier<MatiereState> {
-  final SupabaseClient _supabaseClient;
+@Riverpod(keepAlive: true)
+class Matiere extends _$Matiere {
+  late SupabaseClient _supabaseClient;
   String? _lastNiveauCode;
   String? _lastSerieCode;
 
-  MatiereNotifier(this._supabaseClient) : super(MatiereState());
+  @override
+  MatiereState build() {
+    _supabaseClient = ref.watch(supabaseClientProvider);
+    return MatiereState();
+  }
 
   Future<void> fetchMatieres({String? niveauCode, String? serieCode}) async {
-    // Si niveauCode ou serieCode sont null, nous ne pouvons pas filtrer spécifiquement.
-    // Décidez si vous voulez charger toutes les matières, ou ne rien charger et montrer un message.
-    // Pour l'instant, si l'un des deux est null, on considère que le contexte n'est pas complet pour un élève.
     if (niveauCode == null || niveauCode.isEmpty || serieCode == null || serieCode.isEmpty) {
       state = state.copyWith(isLoading: false, matieres: [], errorMessage: "Niveau ou série non spécifié pour charger les matières.");
       return;
@@ -62,10 +66,11 @@ class MatiereNotifier extends StateNotifier<MatiereState> {
       if (matiereIds.isEmpty) {
         fetchedMatieres = [];
       } else {
+        final String matiereIdsString = '(${matiereIds.join(',')})';
         final matieresResponse = await _supabaseClient
             .from('matieres')
             .select()
-            .filter('id', 'in', '(${matiereIds.join(',')})')
+            .filter('id', 'in', matiereIdsString)
             .order('nom', ascending: true);
         
         fetchedMatieres = matieresResponse
@@ -82,12 +87,10 @@ class MatiereNotifier extends StateNotifier<MatiereState> {
     }
   }
 
-  // Méthode pour définir un message d'erreur depuis l'extérieur (ex: si profil élève manquant)
   void setExternalError(String message) {
     state = state.copyWith(isLoading: false, matieres: [], errorMessage: message, resetErrorMessage: false);
   }
 
-  // Méthode pour vider les données et erreurs
   void clearDataAndError() {
     state = state.copyWith(isLoading: false, matieres: [], errorMessage: null, resetErrorMessage: true);
   }
@@ -100,17 +103,18 @@ class MatiereNotifier extends StateNotifier<MatiereState> {
           .insert(matiereAAjouter.toMapForInsert())
           .select();
 
-      final List<MatiereModel> newMatieresList = (response as List)
-        .map((data) => MatiereModel.fromMap(data as Map<String, dynamic>))
-        .toList();
+      final List<dynamic> insertedDataList = response as List<dynamic>;
 
-      if (newMatieresList.isNotEmpty) {
+      if (insertedDataList.isNotEmpty) {
         if (_lastNiveauCode != null && _lastSerieCode != null) {
            await fetchMatieres(niveauCode: _lastNiveauCode, serieCode: _lastSerieCode);
-        } 
+        } else {
+            state = state.copyWith(isLoading: false);
+        }
         return true;
       } else {
-         throw Exception("N'a pas pu ajouter la matière et récupérer la confirmation.");
+         state = state.copyWith(isLoading: false, errorMessage: "N'a pas pu ajouter la matière et récupérer la confirmation.");
+         return false;
       }
     } on PostgrestException catch (e) {
       print("Erreur Postgrest addMatiere: ${e.message}");
@@ -131,21 +135,18 @@ class MatiereNotifier extends StateNotifier<MatiereState> {
           .update(matiereAMettreAJour.toMapForUpdate())
           .eq('id', matiereAMettreAJour.id)
           .select();
-
-      final List<MatiereModel> updatedMatieresList = (response as List)
-        .map((data) => MatiereModel.fromMap(data as Map<String, dynamic>))
-        .toList();
       
-      if (updatedMatieresList.isNotEmpty) {
+      final List<dynamic> updatedDataList = response as List<dynamic>;
+      
+      if (updatedDataList.isNotEmpty) {
         if (_lastNiveauCode != null && _lastSerieCode != null) {
           await fetchMatieres(niveauCode: _lastNiveauCode, serieCode: _lastSerieCode);
+        } else {
+            state = state.copyWith(isLoading: false);
         }
         return true;
       } else {
         state = state.copyWith(isLoading: false, errorMessage: "Matière mise à jour, mais n'a pas pu récupérer la confirmation.");
-        if (_lastNiveauCode != null && _lastSerieCode != null) { 
-          await fetchMatieres(niveauCode: _lastNiveauCode, serieCode: _lastSerieCode);
-        }
         return false; 
       }
     } on PostgrestException catch (e) {
@@ -169,6 +170,8 @@ class MatiereNotifier extends StateNotifier<MatiereState> {
       
       if (_lastNiveauCode != null && _lastSerieCode != null) {
         await fetchMatieres(niveauCode: _lastNiveauCode, serieCode: _lastSerieCode);
+      } else {
+        state = state.copyWith(isLoading: false);
       }
       return true;
     } on PostgrestException catch (e) {
@@ -182,8 +185,3 @@ class MatiereNotifier extends StateNotifier<MatiereState> {
     }
   }
 }
-
-final matiereProvider = StateNotifierProvider<MatiereNotifier, MatiereState>((ref) {
-  final supabaseClient = ref.watch(supabaseClientProvider);
-  return MatiereNotifier(supabaseClient);
-});

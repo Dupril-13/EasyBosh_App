@@ -1,17 +1,10 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState; // AuthState de supabase masqué
 import '../models/user_chapter_progress_model.dart';
+import '../main.dart'; // For supabaseClientProvider
+import '../core/providers/auth_provider.dart'; // For authProvider and our AuthState
 
-final supabaseClientProvider = Provider((ref) => Supabase.instance.client);
-
-// Provider for the current user ID (assuming you have an authProvider that exposes it)
-// You might need to adjust this based on your existing authProvider structure.
-final currentUserIdProvider = Provider<String?>((ref) {
-  // Example: Replace with your actual way of getting the user ID
-  // final authState = ref.watch(authProvider);
-  // return authState.user?.id;
-  return Supabase.instance.client.auth.currentUser?.id;
-});
+part 'user_chapter_progress_provider.g.dart';
 
 class UserChapterProgressState {
   final Map<int, UserChapterProgressModel> progressMap; // chapitreId -> progress
@@ -38,30 +31,59 @@ class UserChapterProgressState {
   }
 }
 
-class UserChapterProgressNotifier extends StateNotifier<UserChapterProgressState> {
-  final SupabaseClient _supabaseClient;
-  final String? _userId;
+@Riverpod(keepAlive: true)
+class UserChapterProgress extends _$UserChapterProgress {
+  late SupabaseClient _supabaseClient;
+  String? _userId;
 
-  UserChapterProgressNotifier(this._supabaseClient, this._userId)
-      : super(UserChapterProgressState());
+  @override
+  UserChapterProgressState build() {
+    _supabaseClient = ref.watch(supabaseClientProvider);
+
+    // Listen to authProvider for changes to userId 
+    // and clear state if user logs out/changes.
+    // Here, AuthState refers to our sealed class from auth_provider.dart
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      String? newUserId;
+      if (next is AuthAuthenticated) {
+        newUserId = next.user.uid;
+      } 
+
+      if (_userId != newUserId) {
+        print("[UserChapterProgress] Auth state changed. Old userId: $_userId, New userId: $newUserId");
+        _userId = newUserId;
+        state = UserChapterProgressState(); 
+      }
+    });
+
+    final initialAuthState = ref.read(authProvider); 
+    if (initialAuthState is AuthAuthenticated) {
+      _userId = initialAuthState.user.uid;
+    } else {
+      _userId = null;
+    }
+    print("[UserChapterProgress] Initial build. userId: $_userId");
+    
+    return UserChapterProgressState();
+  }
 
   Future<void> fetchProgressForChapters(List<int> chapitreIds) async {
-    if (_userId == null || chapitreIds.isEmpty) {
-      state = state.copyWith(progressMap: {}); // Clear progress if no user or no IDs
+    if (_userId == null) {
+      state = state.copyWith(progressMap: {}, isLoading: false, clearErrorMessage: true, errorMessage: "Utilisateur non connecté pour récupérer la progression.");
       return;
+    }
+    if (chapitreIds.isEmpty) {
+       state = state.copyWith(isLoading: false); 
+       return;
     }
     state = state.copyWith(isLoading: true, clearErrorMessage: true);
     try {
-      // Format chapitreIds for the IN filter: (id1,id2,id3)
       final idsString = '(${chapitreIds.join(',')})';
-
       final response = await _supabaseClient
           .from('user_chapter_progress')
           .select()
           .eq('user_id', _userId!)
-          .filter('chapitre_id', 'in', idsString); // Corrected line
-
-      // print("Supabase response for chapter progress: $response"); // Debug log
+          .filter('chapitre_id', 'in', idsString);
 
       final newProgressMap = Map<int, UserChapterProgressModel>.from(state.progressMap);
       for (var item in response) {
@@ -77,7 +99,7 @@ class UserChapterProgressNotifier extends StateNotifier<UserChapterProgressState
 
   Future<void> toggleChapterCompletion(int chapitreId, bool currentIsCompleted) async {
     if (_userId == null) {
-      state = state.copyWith(errorMessage: "Utilisateur non connecté.");
+      state = state.copyWith(errorMessage: "Utilisateur non connecté.", isLoading: false);
       return;
     }
 
@@ -85,7 +107,6 @@ class UserChapterProgressNotifier extends StateNotifier<UserChapterProgressState
     final newCompletedStatus = !currentIsCompleted;
 
     try {
-      // Check if a record already exists
       final existingResponse = await _supabaseClient
           .from('user_chapter_progress')
           .select('id')
@@ -96,7 +117,6 @@ class UserChapterProgressNotifier extends StateNotifier<UserChapterProgressState
       UserChapterProgressModel updatedProgress;
 
       if (existingResponse != null && existingResponse['id'] != null) {
-        // Update existing record
         final recordId = existingResponse['id'];
         final updateResponse = await _supabaseClient
             .from('user_chapter_progress')
@@ -106,7 +126,6 @@ class UserChapterProgressNotifier extends StateNotifier<UserChapterProgressState
             .single();
          updatedProgress = UserChapterProgressModel.fromJson(updateResponse);
       } else {
-        // Insert new record
         final insertResponse = await _supabaseClient
             .from('user_chapter_progress')
             .insert({
@@ -129,15 +148,7 @@ class UserChapterProgressNotifier extends StateNotifier<UserChapterProgressState
     }
   }
   
-  // Helper to get completion status for a single chapter
   bool isChapterCompleted(int chapitreId) {
     return state.progressMap[chapitreId]?.isCompleted ?? false;
   }
 }
-
-final userChapterProgressProvider = StateNotifierProvider<UserChapterProgressNotifier, UserChapterProgressState>((ref) {
-  final supabaseClient = ref.watch(supabaseClientProvider);
-  final userId = ref.watch(currentUserIdProvider);
-  // Pass userId to the notifier. It will handle the case where userId is null.
-  return UserChapterProgressNotifier(supabaseClient, userId);
-});
