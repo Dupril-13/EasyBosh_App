@@ -353,6 +353,15 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
                     tooltip: 'Modifier ce chapitre',
                     onPressed: () => widget.onEditChapitre?.call(chapitre),
                   ),
+                  if (canReorder)
+                    ReorderableDragStartListener(
+                      index: index,
+                      child: IconButton(
+                        icon: const Icon(Icons.drag_handle),
+                        tooltip: 'Réorganiser ce chapitre',
+                        onPressed: null, // Visually an IconButton, drag is handled by listener
+                      ),
+                    ),
                   IconButton(
                     icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
                     tooltip: 'Supprimer ce chapitre',
@@ -383,13 +392,6 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
                       }
                     },
                   ),
-                  if (canReorder) ...[
-                    const SizedBox(width: 8),
-                    ReorderableDragStartListener(
-                      index: index,
-                      child: const Tooltip(message: 'Réorganiser ce chapitre', child: Icon(Icons.drag_handle)),
-                    ),
-                  ],
                 ],
               ),
               onTap: () => widget.onChapitreSelected(chapitre),
@@ -406,7 +408,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
           
           ref.read(chapitreProvider.notifier).updateChapitresOrder(
             reorderedList, 
-            matiereId: _selectedMatiereId!, 
+            matiereId: _selectedMatiereId!,
             niveauCode: _selectedNiveauCode, 
             serieCode: effectiveSerieCode 
           );

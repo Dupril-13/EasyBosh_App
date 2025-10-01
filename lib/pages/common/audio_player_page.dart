@@ -1,5 +1,8 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+// import 'package:url_launcher/url_launcher.dart'; // url_launcher n'est plus utilisé directement ici pour le téléchargement
+import 'package:iconsax_flutter/iconsax_flutter.dart'; 
+import '../../../utils/download_service.dart'; // Import du DownloadService
 
 class AudioPlayerPage extends StatefulWidget {
   final String audioUrl;
@@ -23,6 +26,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   PlayerState _playerState = PlayerState.stopped;
   bool _isLoading = true;
   String? _errorMessage;
+  final DownloadService _downloadService = DownloadService(); // Instance du service
+  bool _isDownloading = false;
 
   @override
   void initState() {
@@ -36,26 +41,22 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     if (!mounted) return;
     try {
       await _audioPlayer.setSourceUrl(widget.audioUrl);
-      // Listener for duration changes
       _audioPlayer.onDurationChanged.listen((d) {
         if (mounted) setState(() => _duration = d);
       });
-      // Listener for position changes
       _audioPlayer.onPositionChanged.listen((p) {
         if (mounted) setState(() => _position = p);
       });
-      // Listener for player state changes
       _audioPlayer.onPlayerStateChanged.listen((s) {
         if (mounted) {
           setState(() => _playerState = s);
           _isPlaying = s == PlayerState.playing;
           if (s == PlayerState.completed) {
-            _position = _duration; // Mark as completed
+            _position = _duration; 
           }
         }
         print("AudioPlayerPage: Player state changed to: $s");
       });
-      // Listener for errors
       _audioPlayer.onPlayerComplete.listen((event) {
          if (mounted) {
             setState(() {
@@ -73,7 +74,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
           _duration = initialDuration ?? Duration.zero;
           _isLoading = false;
         });
-      } // Removed comma here
+      }
       print("AudioPlayerPage: AudioPlayer initialized. Initial duration: $initialDuration");
     } catch (e) {
       print("AudioPlayerPage: Error initializing audio player: $e");
@@ -102,7 +103,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     } else if (_playerState == PlayerState.completed) {
       await _audioPlayer.seek(Duration.zero);
       await _audioPlayer.resume();
-    } else { // Stopped or initial state
+    } else { 
       await _audioPlayer.play(UrlSource(widget.audioUrl));
     }
   }
@@ -113,11 +114,70 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     return "$minutes:$seconds";
   }
 
+  Future<void> _handleDownload() async {
+    if (widget.audioUrl.isEmpty) return;
+     if (_isDownloading) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Un téléchargement est déjà en cours.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    setState(() {
+      _isDownloading = true;
+    });
+
+    String filename = widget.audioUrl.split('/').last;
+    if (filename.isEmpty || !filename.contains('.')) {
+      filename = "${widget.lessonTitle.replaceAll(RegExp(r'[^a-zA-Z0-9_.-]'), '_')}.mp3";
+    }
+    if (!filename.toLowerCase().endsWith('.mp3') && 
+        !filename.toLowerCase().endsWith('.m4a') && 
+        !filename.toLowerCase().endsWith('.wav') && 
+        !filename.toLowerCase().endsWith('.aac')) {
+        filename += '.mp3'; // Default to mp3 if common audio extension is missing
+    }
+
+    final String? filePath = await _downloadService.downloadFile(
+      context: context,
+      url: widget.audioUrl,
+      filename: filename,
+      onReceiveProgress: (received, total) {
+        print("AudioPlayerPage - Progression du téléchargement: $received / $total");
+      },
+    );
+
+    if (mounted) {
+      setState(() {
+        _isDownloading = false;
+      });
+    }
+
+    if (filePath != null) {
+      print("Fichier audio sauvegardé: $filePath");
+    } else {
+      print("Échec du téléchargement de l'audio.");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.lessonTitle),
+        actions: [
+          if (widget.audioUrl.isNotEmpty)
+            _isDownloading
+              ? const Padding(
+                  padding: EdgeInsets.only(right: 16.0),
+                  child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+                )
+              : IconButton(
+                  icon: const Icon(Iconsax.document_download_copy, semanticLabel: "Télécharger l'audio"), 
+                  onPressed: _handleDownload, // Appelle la nouvelle fonction de téléchargement
+                  tooltip: "Télécharger l'audio",
+                ),
+        ],
       ),
       body: Center(
         child: _isLoading
@@ -158,7 +218,6 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                           onChanged: (value) async {
                             final newPosition = Duration(seconds: value.toInt());
                             await _audioPlayer.seek(newPosition);
-                             // Optionally resume playback if it was paused due to seek
                             if (!_isPlaying && _playerState == PlayerState.paused) {
                               await _audioPlayer.resume();
                             }
@@ -170,8 +229,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(_formatDuration(_position)),
-                              Text(_formatDuration(_duration - _position)), // Remaining time
-                              // Text(_formatDuration(_duration)), // Total time
+                              Text(_formatDuration(_duration - _position)), 
                             ],
                           ),
                         ),

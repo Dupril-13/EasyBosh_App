@@ -46,18 +46,25 @@ class RecentLecons extends _$RecentLecons {
     _supabaseClient = ref.watch(supabaseClientProvider);
     final authState = ref.watch(authProvider);
 
+    // Détermine _userId en fonction de l'état d'authentification
     if (authState is AuthAuthenticated) {
       _userId = authState.user.uid;
     } else {
       _userId = null;
     }
 
-    // Fetch lecons if a user is logged in (or becomes logged in).
-    // fetchRecentLecons handles the case where _userId is null.
-    fetchRecentLecons();
+    // Planifie l'exécution de fetchRecentLecons après la fin de la méthode build.
+    // Cela garantit que 'state' est initialisé avant que fetchRecentLecons tente de le lire/modifier.
+    Future(() => fetchRecentLecons());
 
-    // Initial state. isLoading might be true if _userId is not null and we haven't loaded yet.
-    return RecentLeconsState(isLoading: _userId != null && state.recentLecons.isEmpty && state.errorMessage == null);
+    // Retourne un état initial clair et défini.
+    // isLoading peut être vrai si un fetch est attendu (l'utilisateur est connecté).
+    // Les leçons récentes sont initialement vides et il n'y a pas de message d'erreur.
+    return RecentLeconsState(
+      recentLecons: const [], // Liste initialement vide
+      isLoading: _userId != null, // Indique qu'un fetch va probablement commencer
+      errorMessage: null, // Pas de message d'erreur initial
+    );
   }
 
   Future<void> fetchRecentLecons() async {

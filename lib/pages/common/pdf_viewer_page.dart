@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb; // Ajout pour kIsWeb
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:dio/dio.dart';
@@ -21,7 +22,7 @@ class PdfViewerPage extends StatefulWidget {
 }
 
 class _PdfViewerPageState extends State<PdfViewerPage> {
-  String? _localPdfPath;
+  String? _localPdfPathOrUrl; // Renommé pour plus de clarté
   bool _isLoading = true;
   String _loadingMessage = 'Chargement du PDF...';
   double _downloadProgress = 0.0;
@@ -42,71 +43,85 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
       _isLoading = true;
       _loadingMessage = 'Chargement du PDF...';
     });
-    try {
-      print("PDF URL being used for viewing: ${widget.pdfUrl}"); // Added print
-      final dir = await getApplicationDocumentsDirectory();
-      final filename = '${widget.lessonTitle.replaceAll(RegExp(r'[^A-Za-z0-9]'), '_')}_preview.pdf';
-      final filePath = '${dir.path}/$filename';
 
-      await Dio().download(
-        widget.pdfUrl,
-        filePath,
-        onReceiveProgress: (received, total) {
-          if (total != -1 && mounted) {
-            setState(() {
-              _loadingMessage = 'Chargement: ${(received / total * 100).toStringAsFixed(0)}%';
-            });
-          }
-        },
-      );
-
+    if (kIsWeb) {
+      // Pour le web, utiliser l'URL directement
+      print("PDF URL for web viewing (direct): ${widget.pdfUrl}");
       if (mounted) {
         setState(() {
-          _localPdfPath = filePath;
+          _localPdfPathOrUrl = widget.pdfUrl; // Utiliser l'URL
           _isLoading = false;
         });
       }
-    } catch (e) {
-      print('Error loading PDF for viewing: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _loadingMessage = 'Erreur de chargement du PDF: ${e.toString().substring(0, (e.toString().length > 100) ? 100 : e.toString().length)}';
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur de chargement du PDF: ${e.toString().substring(0, (e.toString().length > 100) ? 100 : e.toString().length)}')),
+    } else {
+      // Pour les plateformes natives, télécharger comme avant
+      try {
+        print("PDF URL for native viewing (download): ${widget.pdfUrl}");
+        final dir = await getApplicationDocumentsDirectory();
+        final filename = '${widget.lessonTitle.replaceAll(RegExp(r'[^A-Za-z0-9]'), '_')}_preview.pdf';
+        final filePath = '${dir.path}/$filename';
+        
+        final file = File(filePath);
+        if (await file.exists()) {
+          // Optionnel : vérifier la date ou la taille pour décider de re-télécharger
+          // Pour l'instant, on le supprime pour s'assurer d'avoir la dernière version
+          // await file.delete();
+        }
+
+        await Dio().download(
+          widget.pdfUrl,
+          filePath,
+          onReceiveProgress: (received, total) {
+            if (total != -1 && mounted) {
+              setState(() {
+                _loadingMessage = 'Chargement: ${(received / total * 100).toStringAsFixed(0)}%';
+              });
+            }
+          },
         );
+
+        if (mounted) {
+          setState(() {
+            _localPdfPathOrUrl = filePath; // Utiliser le chemin local
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        print('Error loading PDF for native viewing: $e');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _loadingMessage = 'Erreur de chargement du PDF: ${e.toString().substring(0, (e.toString().length > 100) ? 100 : e.toString().length)}';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur de chargement du PDF')),
+          );
+        }
       }
     }
   }
 
   Future<void> _downloadAndOpenFile() async {
     if (_isDownloading) return;
-    print("PDF URL being used for download: ${widget.pdfUrl}"); // Added print for download function too
+    print("PDF URL being used for download: ${widget.pdfUrl}");
 
+    // La logique de permission pour le téléchargement reste la même
     var storageStatus = await Permission.storage.status;
-    
     if (Platform.isAndroid) {
-        final androidInfo = await Dio().get('https://api.ipify.org'); 
-        // final androidInfo = await DeviceInfoPlugin().androidInfo; 
-        // if (androidInfo.version.sdkInt >= 33) { // Android 13+ 
-        //   storageStatus = await Permission.manageExternalStorage.status; 
-        //   if (storageStatus != PermissionStatus.granted) { 
-        //     storageStatus = await Permission.manageExternalStorage.request(); 
-        //   } 
-        // } else 
+        // Pour simplifier, on ne demande plus manageExternalStorage ici,
+        // storage (accès aux fichiers médias) devrait suffire pour le dossier Download
+        // Si Android 13+ (SDK 33+), les permissions sont plus granulaires (photos, videos, audio)
+        // Pour les fichiers génériques dans Download, WRITE_EXTERNAL_STORAGE (avant SDK 29) ou pas de permission directe (après SDK 29, via MediaStore)
+        // Permission.storage est un bon point de départ.
         if (storageStatus != PermissionStatus.granted) {
             storageStatus = await Permission.storage.request();
         }
     } else if (Platform.isIOS) {
-        // iOS does not require explicit permission for app's document directory
+        // iOS ne nécessite pas de permission explicite pour le dossier de l'application.
+        // Pour enregistrer dans Photos, d'autres permissions seraient nécessaires.
     } 
-    // else {
-    //     // Fallback for other platforms or older Android versions if needed
-    //     storageStatus = await Permission.storage.request(); 
-    // }
 
-    if (storageStatus != PermissionStatus.granted) {
+    if (storageStatus != PermissionStatus.granted && !kIsWeb) { // Sur le web, le navigateur gère les téléchargements
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Permission de stockage refusée.')),
       );
@@ -119,6 +134,23 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
     });
 
     try {
+      String filePathToOpen;
+      if (kIsWeb) {
+        // Sur le web, le téléchargement est géré par le navigateur en ouvrant l'URL
+        // On peut simuler cela ou juste laisser le navigateur gérer via un lien
+        // Pour l'instant, on ne fait rien de spécial ici pour le bouton "Télécharger" sur le web
+        // car le PDF est déjà censé s'afficher en ligne.
+        // On pourrait utiliser html.AnchorElement pour déclencher un téléchargement nommé.
+        print("Web download button pressed - PDF should be viewable or downloaded by browser directly.");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Le PDF devrait s\'afficher ou être téléchargeable via les contrôles du navigateur.')),
+        );
+         if (mounted) {
+          setState(() { _isDownloading = false; });
+        }
+        return; // Pour l'instant, pas d'action de téléchargement de fichier explicite pour le web ici.
+      }
+
       Directory? downloadsDir;
       if (Platform.isIOS) {
         downloadsDir = await getApplicationDocumentsDirectory();
@@ -135,11 +167,11 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
       
       final safeLessonTitle = widget.lessonTitle.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
       final fileName = '${safeLessonTitle}_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final filePath = '${downloadsDir!.path}/$fileName';
+      filePathToOpen = '${downloadsDir!.path}/$fileName';
 
       await Dio().download(
         widget.pdfUrl,
-        filePath,
+        filePathToOpen,
         onReceiveProgress: (received, total) {
           if (total != -1 && mounted) {
             setState(() {
@@ -156,7 +188,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
             action: SnackBarAction(
               label: 'OUVRIR',
               onPressed: () {
-                OpenFilex.open(filePath);
+                OpenFilex.open(filePathToOpen);
               },
             ),
           ),
@@ -191,13 +223,15 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
           ],
         ),
         actions: [
-          if (_localPdfPath != null && !_isDownloading)
+          // Le bouton de téléchargement est moins pertinent sur le web si le PDF s'affiche déjà.
+          // Mais on le laisse pour l'instant, il ne fera rien (ou on peut le cacher avec !kIsWeb).
+          if (_localPdfPathOrUrl != null && !_isDownloading && !kIsWeb)
             IconButton(
               icon: const Icon(Icons.download_outlined),
               tooltip: 'Télécharger le PDF',
               onPressed: _downloadAndOpenFile,
             ),
-          if (_isDownloading)
+          if (_isDownloading && !kIsWeb) // Masquer la progression pour le web aussi
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 18.0),
               child: SizedBox(
@@ -214,7 +248,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
       ),
       body: _isLoading
           ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [const CircularProgressIndicator(), const SizedBox(height: 16), Text(_loadingMessage)]))
-          : _localPdfPath == null
+          : _localPdfPathOrUrl == null
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -222,9 +256,9 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
                   )
                 )
               : PDFView(
-                  filePath: _localPdfPath!,
+                  filePath: _localPdfPathOrUrl!, // Utilisation de la variable renommée/modifiée
                   enableSwipe: true,
-                  swipeHorizontal: false,
+                  swipeHorizontal: kIsWeb, // Sur le web, le scroll horizontal peut être plus naturel
                   autoSpacing: true,
                   pageFling: true,
                   pageSnap: true,
@@ -237,7 +271,10 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
                   onError: (error) {
                     print(error.toString());
                      if(mounted) {
-                        setState(() { _loadingMessage = 'Erreur d\'affichage PDF: $error'; _localPdfPath = null; });
+                        setState(() { 
+                          _loadingMessage = 'Erreur d\'affichage PDF: $error'; 
+                          _localPdfPathOrUrl = null; // Invalider le chemin/url en cas d'erreur
+                        });
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur d\'affichage PDF: $error')));
                     }
                   },

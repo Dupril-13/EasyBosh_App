@@ -71,7 +71,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/staff-login',
+    initialLocation: '/get-started',
     debugLogDiagnostics: true,
     refreshListenable: authStateNotifierForGoRouter, // Utilise le ValueNotifier
 

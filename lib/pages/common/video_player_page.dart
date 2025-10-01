@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
+// import 'package:url_launcher/url_launcher.dart'; // url_launcher n'est plus utilisé directement ici pour le téléchargement
+import 'package:iconsax_flutter/iconsax_flutter.dart'; 
+import '../../../utils/download_service.dart'; // Import du DownloadService
 
 class VideoPlayerPage extends StatefulWidget {
   final String videoUrl;
@@ -16,80 +20,154 @@ class VideoPlayerPage extends StatefulWidget {
 }
 
 class _VideoPlayerPageState extends State<VideoPlayerPage> {
-  late VideoPlayerController _controller;
+  late VideoPlayerController _videoPlayerController;
+  ChewieController? _chewieController;
   bool _isLoading = true;
-  bool _isPlaying = false;
   String? _errorMessage;
+  final DownloadService _downloadService = DownloadService(); // Instance du service
+  bool _isDownloading = false;
 
   @override
   void initState() {
     super.initState();
     print("VideoPlayerPage: Initializing for URL: ${widget.videoUrl}");
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
-      ..initialize().then((_) {
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-          // Auto-play or let user start? For now, let user start.
-          // _controller.play();
-          // _isPlaying = true;
-        });
-        print("VideoPlayerPage: Controller initialized. Duration: ${_controller.value.duration}");
-      }).catchError((error) {
-        if (!mounted) return;
-        print("VideoPlayerPage: Error initializing video controller: $error");
-        setState(() {
-          _isLoading = false;
-          _errorMessage = "Impossible de charger la vidéo: ${error.toString()}";
-        });
-      });
+    _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+    _initializePlayer();
+  }
 
-    _controller.addListener(() {
+  Future<void> _initializePlayer() async {
+    try {
+      await _videoPlayerController.initialize();
       if (!mounted) return;
-      if (_isPlaying != _controller.value.isPlaying) {
-        setState(() {
-          _isPlaying = _controller.value.isPlaying;
-        });
-      }
-    });
+
+      _chewieController = ChewieController(
+        videoPlayerController: _videoPlayerController,
+        autoPlay: false,
+        looping: false,
+        aspectRatio: _videoPlayerController.value.aspectRatio,
+        placeholder: Container(
+          color: Colors.black, 
+          child: const Center(
+            child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+          ),
+        ),
+        errorBuilder: (context, errorMessage) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                errorMessage,
+                style: const TextStyle(color: Colors.white, fontSize: 16), 
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        },
+      );
+      setState(() {
+        _isLoading = false;
+      });
+      print("VideoPlayerPage: Chewie controller initialized. Duration: ${_videoPlayerController.value.duration}");
+    } catch (error) {
+      if (!mounted) return;
+      print("VideoPlayerPage: Error initializing video controller: $error");
+      setState(() {
+        _isLoading = false;
+        _errorMessage = "Impossible de charger la vidéo: ${error.toString()}";
+      });
+    }
   }
 
   @override
   void dispose() {
-    print("VideoPlayerPage: Disposing controller for URL: ${widget.videoUrl}");
-    _controller.dispose();
+    print("VideoPlayerPage: Disposing controllers for URL: ${widget.videoUrl}");
+    _videoPlayerController.dispose();
+    _chewieController?.dispose();
     super.dispose();
   }
 
-  void _togglePlayPause() {
-    if (!mounted) return;
+  Future<void> _handleDownload() async {
+    if (widget.videoUrl.isEmpty) return;
+    if (_isDownloading) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Un téléchargement est déjà en cours.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
     setState(() {
-      if (_controller.value.isPlaying) {
-        _controller.pause();
-      } else {
-        // If at the end, restart
-        if (_controller.value.position >= _controller.value.duration) {
-          _controller.seekTo(Duration.zero);
-        }
-        _controller.play();
-      }
+      _isDownloading = true;
     });
+
+    // Extraire un nom de fichier de l'URL ou utiliser le titre de la leçon
+    String filename = widget.videoUrl.split('/').last;
+    if (filename.isEmpty || !filename.contains('.')) { // Si le nom de fichier est invalide ou manque d'extension
+      filename = "${widget.lessonTitle.replaceAll(RegExp(r'[^a-zA-Z0-9_.-]'), '_')}.mp4";
+    }
+    // Assurer une extension valide si elle est toujours manquante
+    if (!filename.toLowerCase().endsWith('.mp4') && !filename.toLowerCase().endsWith('.mov')) {
+        filename += '.mp4';
+    }
+
+
+    final String? filePath = await _downloadService.downloadFile(
+      context: context, 
+      url: widget.videoUrl,
+      filename: filename,
+      onReceiveProgress: (received, total) {
+        // Vous pouvez ajouter une logique de mise à jour de l'UI de progression ici si nécessaire
+        // Par exemple, en utilisant un StateProvider pour la progression
+        print("VideoPlayerPage - Progression du téléchargement: $received / $total");
+      },
+    );
+
+    if (mounted) {
+        setState(() {
+          _isDownloading = false;
+        });
+    }
+
+    if (filePath != null) {
+      print("Fichier vidéo sauvegardé: $filePath");
+      // Optionnel: Ouvrir le fichier après téléchargement avec open_filex si vous l'avez et le souhaitez.
+      // OpenFilex.open(filePath);
+    } else {
+      print("Échec du téléchargement de la vidéo.");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: Text(widget.lessonTitle),
+        backgroundColor: Colors.transparent, 
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white), 
+        titleTextStyle: const TextStyle(color: Colors.white, fontSize: 20), 
+        actions: [
+          if (widget.videoUrl.isNotEmpty)
+            _isDownloading
+              ? const Padding(
+                  padding: EdgeInsets.only(right: 16.0),
+                  child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))))
+                )
+              : IconButton(
+                  icon: const Icon(Iconsax.document_download_copy, semanticLabel: "Télécharger la vidéo"),
+                  onPressed: _handleDownload, // Appelle la nouvelle fonction de téléchargement
+                  tooltip: "Télécharger la vidéo",
+                ),
+        ],
       ),
       body: Center(
         child: _isLoading
             ? const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(),
+                  CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
                   SizedBox(height: 20),
-                  Text('Chargement de la vidéo...'),
+                  Text('Chargement de la vidéo...', style: TextStyle(color: Colors.white)),
                 ],
               )
             : _errorMessage != null
@@ -101,63 +179,21 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                       textAlign: TextAlign.center,
                     ),
                   )
-                : _controller.value.isInitialized
-                    ? AspectRatio(
-                        aspectRatio: _controller.value.aspectRatio,
-                        child: Stack(
-                          alignment: Alignment.bottomCenter,
-                          children: <Widget>[
-                            VideoPlayer(_controller),
-                            _ControlsOverlay(controller: _controller, togglePlayPause: _togglePlayPause),
-                            VideoProgressIndicator(_controller, allowScrubbing: true),
-                          ],
-                        ),
-                      )
-                    : const Text('Initialisation du lecteur vidéo...'),
+                : _chewieController != null && _chewieController!.videoPlayerController.value.isInitialized
+                    ? Chewie(controller: _chewieController!) 
+                    : const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline, color: Colors.red, size: 50),
+                          SizedBox(height: 10),
+                          Text(
+                            'Erreur lors de l\'initialisation du lecteur vidéo.',
+                            style: TextStyle(color: Colors.red, fontSize: 16),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
       ),
-      floatingActionButton: _controller.value.isInitialized && _errorMessage == null && !_isLoading
-          ? FloatingActionButton(
-              onPressed: _togglePlayPause,
-              child: Icon(
-                _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
-              ),
-            )
-          : null,
-    );
-  }
-}
-
-class _ControlsOverlay extends StatelessWidget {
-  const _ControlsOverlay({Key? key, required this.controller, required this.togglePlayPause}) : super(key: key);
-
-  final VideoPlayerController controller;
-  final VoidCallback togglePlayPause;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: <Widget>[
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 50),
-          reverseDuration: const Duration(milliseconds: 200),
-          child: controller.value.isPlaying
-              ? const SizedBox.shrink()
-              : Container(
-                  color: Colors.black26,
-                  child: const Center(
-                    child: Icon(
-                      Icons.play_arrow,
-                      color: Colors.white,
-                      size: 100.0,
-                      semanticLabel: 'Play',
-                    ),
-                  ),
-                ),
-        ),
-        GestureDetector(
-          onTap: togglePlayPause,
-        ),
-      ],
     );
   }
 }
