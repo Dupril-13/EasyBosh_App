@@ -1,57 +1,56 @@
 import 'package:flutter/foundation.dart';
 
-// Énumération pour le type d'épreuve (correspondra aux valeurs string de la BDD)
 enum EpreuveType {
-  ancienSujet,      // ex: 'ancien_sujet' en BDD
-  sujetCollege,     // ex: 'sujet_college' en BDD
-  examenBlanc,      // ex: 'examen_blanc' en BDD
-  epreuveExclusive  // ex: 'exclusive' en BDD (si vous l'utilisez)
+  ancienSujet,
+  sujetCollege,
+  examenBlanc,
+  epreuveExclusive
 }
 
-// Énumération pour le statut de l'épreuve (correspondra aux valeurs string de la BDD)
 enum EpreuveStatut {
-  brouillon,   // 'brouillon'
-  publiee,     // 'publiee'
-  programmee,  // 'programmee'
-  archivee     // 'archivee'
+  brouillon,
+  publiee,
+  programmee,
+  archivee
 }
 
-// Énumération pour les types d'examen officiels (utilisée dans le formulaire)
 enum TypeExamenOfficiel {
   bepc,
   probatoire,
   baccalaureat
 }
 
-// Classe représentant une épreuve, alignée sur votre table Supabase `epreuves`
 class Epreuve {
-  final int? id; // Nullable pour la création, non-null pour les épreuves existantes
-  final DateTime? createdAt; // epreuves.created_at
-  final String? createdBy; // epreuves.created_by (uuid de l'utilisateur)
-  final DateTime? updatedAt; // epreuves.updated_at
+  final int? id;
+  final DateTime? createdAt;
+  final String? createdBy;
+  final DateTime? updatedAt;
 
-  String nom; // epreuves.nom (Titre de l'épreuve)
-  EpreuveType typeEpreuve; // Mappé depuis/vers epreuves.type (String)
-  int matiereId; // epreuves.matiere_id
-  String niveauCode; // epreuves.niveau_code (ex: '3eme', '1ere', 'tle')
-  List<String> seriesCodes; // epreuves.series_codes (TEXT[]), ex: ['C', 'D']
-  int dureeMinutes; // epreuves.duree
-  double bareme;    // epreuves.bareme
-  String? description; // epreuves.description (peut servir de consignes générales)
-  bool actif; // epreuves.actif (utilisé pour dériver publiee/archivee si statut n'est pas utilisé directement)
+  String nom;
+  EpreuveType typeEpreuve;
+  int matiereId;
+  String niveauCode;
+  List<String> seriesCodes;
+  int dureeMinutes;
+  double bareme;
+  String? description;
+  bool actif;
   
-  String? sujetPdfUrl; // epreuves.fichier_url 
-  String? corrigePdfUrl; // epreuves.corrige_url
+  String? sujetPdfUrl;
+  String? corrigePdfUrl;
 
-  int? anneeExamen; // epreuves.annee
-  String? sessionExamen; // epreuves.session
+  int? anneeExamen;
+  String? sessionExamen;
 
-  String? nomEtablissement; // epreuves.nom_etablissement
-  String? villeEtablissement; // epreuves.ville_etablissement
-  DateTime? dateCompositionCollege; // epreuves.date_composition_college
+  String? nomEtablissement;
+  String? villeEtablissement;
+  DateTime? dateCompositionCollege;
 
-  EpreuveStatut statut; // epreuves.statut (ex: 'brouillon', 'publiee')
-  DateTime? datePublicationProgrammee; // epreuves.date_publication_programmee
+  EpreuveStatut statut;
+  DateTime? datePublicationProgrammee;
+
+  final String? matiereNom;
+  final String? niveauNom;
 
   Epreuve({
     this.id,
@@ -76,6 +75,8 @@ class Epreuve {
     this.dateCompositionCollege,
     this.statut = EpreuveStatut.brouillon,
     this.datePublicationProgrammee,
+    this.matiereNom,
+    this.niveauNom,
   });
 
   static EpreuveType _typeFromString(String? typeString) {
@@ -88,7 +89,7 @@ class Epreuve {
     }
   }
 
-  static String typeToString(EpreuveType type) { // Made public
+  static String typeToString(EpreuveType type) {
     switch (type) {
       case EpreuveType.ancienSujet: return 'ancien_sujet';
       case EpreuveType.sujetCollege: return 'sujet_college';
@@ -107,7 +108,7 @@ class Epreuve {
     }
   }
 
-  static String statutToString(EpreuveStatut statut) { // Made public
+  static String statutToString(EpreuveStatut statut) {
     switch (statut) {
       case EpreuveStatut.brouillon: return 'brouillon';
       case EpreuveStatut.publiee: return 'publiee';
@@ -150,13 +151,15 @@ class Epreuve {
       dateCompositionCollege: map['date_composition_college'] != null ? DateTime.parse(map['date_composition_college'] as String) : null,
       statut: _statutFromString(map['statut'] as String?),
       datePublicationProgrammee: map['date_publication_programmee'] != null ? DateTime.parse(map['date_publication_programmee'] as String) : null,
+      matiereNom: map['matieres'] != null ? map['matieres']['nom'] as String? : null,
+      niveauNom: map['niveaux'] != null ? map['niveaux']['nom'] as String? : null,
     );
   }
 
   Map<String, dynamic> toMap() {
     final mapData = {
       'nom': nom,
-      'type': typeToString(typeEpreuve), // Using public method
+      'type': typeToString(typeEpreuve),
       'matiere_id': matiereId,
       'niveau_code': niveauCode,
       'series_codes': seriesCodes,
@@ -171,25 +174,12 @@ class Epreuve {
       'nom_etablissement': nomEtablissement,
       'ville_etablissement': villeEtablissement,
       'date_composition_college': dateCompositionCollege?.toIso8601String(),
-      'statut': statutToString(statut), // Using public method
+      'statut': statutToString(statut),
       'date_publication_programmee': datePublicationProgrammee?.toIso8601String(),
     };
-    if (id != null) {
-      mapData['id'] = id; // Inclure l'ID pour les mises à jour
-    }
-    if (createdBy != null) {
-      mapData['created_by'] = createdBy;
-    }
+    if (id != null) mapData['id'] = id;
+    if (createdBy != null) mapData['created_by'] = createdBy;
     return mapData;
-  }
-
-  String get typeEpreuveDisplay {
-    switch (typeEpreuve) {
-      case EpreuveType.ancienSujet: return 'Ancien Sujet d\'Examen';
-      case EpreuveType.sujetCollege: return 'Sujet de Collège Connu';
-      case EpreuveType.examenBlanc: return 'Examen Blanc';
-      case EpreuveType.epreuveExclusive: return 'Épreuve Exclusive';
-    }
   }
 
   static String statutToStringDisplay(EpreuveStatut statut) {
@@ -209,10 +199,32 @@ class Epreuve {
     }
   }
 
-  String get niveauScolaireDisplay => niveauCode; 
+  static TypeExamenOfficiel? stringToTypeExamenOfficiel(String? sessionString) {
+    if (sessionString == null) return null;
+    switch (sessionString.toUpperCase()) {
+      case 'BEPC': return TypeExamenOfficiel.bepc;
+      case 'PROBATOIRE': return TypeExamenOfficiel.probatoire;
+      case 'BACCALAURÉAT':
+      case 'BACCALAUREAT': return TypeExamenOfficiel.baccalaureat;
+      default: return null;
+    }
+  }
+
+  String get niveauScolaireDisplay => niveauNom ?? niveauCode;
+  String get matiereDisplay => matiereNom ?? 'Matière ID: $matiereId';
 }
 
-// Helper classes pour les Dropdowns, pour stocker à la fois le code/id et le nom affichable
+extension EpreuveTypeExtension on EpreuveType {
+  String get displayName {
+    switch (this) {
+      case EpreuveType.ancienSujet: return 'Ancien Sujet d\'Examen';
+      case EpreuveType.sujetCollege: return 'Sujet de Collège Connu';
+      case EpreuveType.examenBlanc: return 'Examen Blanc';
+      case EpreuveType.epreuveExclusive: return 'Épreuve Exclusive';
+    }
+  }
+}
+
 class NiveauSelectionItem {
   final String code;
   final String nomDisplay;

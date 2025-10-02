@@ -42,7 +42,7 @@ final class SelectedNiveauCodeExamsProvider
 }
 
 String _$selectedNiveauCodeExamsHash() =>
-    r'd1eb442be89b685827cc3dec7df500ad5fedb699';
+    r'd56653f61c782941db0fd48bc5fc4d646d868255';
 
 abstract class _$SelectedNiveauCodeExams extends $Notifier<String?> {
   String? build();
@@ -96,7 +96,7 @@ final class SelectedSerieCodeExamsProvider
 }
 
 String _$selectedSerieCodeExamsHash() =>
-    r'f3543f43c49f2cd6c307dc8ad81ecd4bbf8c88ca';
+    r'b1a4ee3b7f9e25044f3f59172c2b49e998692e6d';
 
 abstract class _$SelectedSerieCodeExams extends $Notifier<String?> {
   String? build();
@@ -150,7 +150,7 @@ final class SelectedMatiereIdExamsProvider
 }
 
 String _$selectedMatiereIdExamsHash() =>
-    r'b9c5c6dce247aa6abe06504345e456cfbd169fb2';
+    r'ae0e2c780386f476267f62fa51563b34f1e058ce';
 
 abstract class _$SelectedMatiereIdExams extends $Notifier<int?> {
   int? build();
@@ -204,7 +204,7 @@ final class SelectedEpreuveTypeExamsProvider
 }
 
 String _$selectedEpreuveTypeExamsHash() =>
-    r'60d0ccc834e6b42b8946a7a2c174dc2ed781f4fb';
+    r'ce4a3f616077fe033eba2cfe6cf956ea6a4fecf7';
 
 abstract class _$SelectedEpreuveTypeExams extends $Notifier<EpreuveType?> {
   EpreuveType? build();
@@ -218,61 +218,6 @@ abstract class _$SelectedEpreuveTypeExams extends $Notifier<EpreuveType?> {
             as $ClassProviderElement<
               AnyNotifier<EpreuveType?, EpreuveType?>,
               EpreuveType?,
-              Object?,
-              Object?
-            >;
-    element.handleValue(ref, created);
-  }
-}
-
-@ProviderFor(SelectedEpreuveStatutExams)
-const selectedEpreuveStatutExamsProvider =
-    SelectedEpreuveStatutExamsProvider._();
-
-final class SelectedEpreuveStatutExamsProvider
-    extends $NotifierProvider<SelectedEpreuveStatutExams, EpreuveStatut?> {
-  const SelectedEpreuveStatutExamsProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'selectedEpreuveStatutExamsProvider',
-        isAutoDispose: true,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$selectedEpreuveStatutExamsHash();
-
-  @$internal
-  @override
-  SelectedEpreuveStatutExams create() => SelectedEpreuveStatutExams();
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(EpreuveStatut? value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<EpreuveStatut?>(value),
-    );
-  }
-}
-
-String _$selectedEpreuveStatutExamsHash() =>
-    r'02fbc4bb4b705d56dc2a58d41051d41ff0cfab2c';
-
-abstract class _$SelectedEpreuveStatutExams extends $Notifier<EpreuveStatut?> {
-  EpreuveStatut? build();
-  @$mustCallSuper
-  @override
-  void runBuild() {
-    final created = build();
-    final ref = this.ref as $Ref<EpreuveStatut?, EpreuveStatut?>;
-    final element =
-        ref.element
-            as $ClassProviderElement<
-              AnyNotifier<EpreuveStatut?, EpreuveStatut?>,
-              EpreuveStatut?,
               Object?,
               Object?
             >;

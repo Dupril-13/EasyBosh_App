@@ -42,23 +42,17 @@ class SelectedEpreuveTypeExams extends _$SelectedEpreuveTypeExams {
   void set(EpreuveType? value) => state = value;
 }
 
-@riverpod
-class SelectedEpreuveStatutExams extends _$SelectedEpreuveStatutExams {
-  @override
-  EpreuveStatut? build() => null;
-  void set(EpreuveStatut? value) => state = value;
-}
-
 // --- Filtered Exams Provider ---
 
-final filteredExamsProvider = FutureProvider<List<Epreuve>>((ref) async {
+final filteredExamsProvider = FutureProvider.autoDispose<List<Epreuve>>((ref) async {
   final epreuveService = ref.read(epreuveServiceProvider);
+  // We no longer filter by status, so we pass null.
   return epreuveService.fetchFilteredEpreuves(
     niveauCode: ref.watch(selectedNiveauCodeExamsProvider),
     serieCode: ref.watch(selectedSerieCodeExamsProvider),
     matiereId: ref.watch(selectedMatiereIdExamsProvider),
     epreuveType: ref.watch(selectedEpreuveTypeExamsProvider),
-    epreuveStatut: ref.watch(selectedEpreuveStatutExamsProvider),
+    epreuveStatut: null, 
   );
 });
 
@@ -91,18 +85,44 @@ class _ManageExamsPageState extends ConsumerState<ManageExamsPage> {
     });
   }
 
-  String _getEpreuveTypeDisplay(EpreuveType type) {
-    switch (type) {
-      case EpreuveType.ancienSujet: return 'Ancien Sujet d\'Examen';
-      case EpreuveType.sujetCollege: return 'Sujet de Collège Connu';
-      case EpreuveType.examenBlanc: return 'Examen Blanc';
-      case EpreuveType.epreuveExclusive: return 'Épreuve Exclusive';
-    }
+  void _showDeleteConfirmationDialog(BuildContext context, WidgetRef ref, Epreuve epreuve) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Confirmer la suppression'),
+          content: Text('Voulez-vous vraiment supprimer l\'épreuve "${epreuve.nom}" ? Cette action est irréversible.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Annuler'),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            TextButton(
+              child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                try {
+                  await ref.read(epreuveServiceProvider).deleteEpreuve(epreuve.id!);
+                  ref.invalidate(filteredExamsProvider); // Refresh the list
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Épreuve supprimée avec succès.'), backgroundColor: Colors.green),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Erreur lors de la suppression: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
-  
+
   List<DropdownMenuItem<String?>> _buildSerieDropdownItems(List<SerieModel> allSeries, String? currentNiveauCode) {
     if (currentNiveauCode == null) {
-      return [const DropdownMenuItem<String?>(value: null, child: Text("Niveau d'abord", style: TextStyle(color: Colors.grey)))];
+      return []; // No level selected, no series to show except 'All'
     }
     if (currentNiveauCode == '3eme') {
       final tcSerie = allSeries.firstWhere((s) => s.code == 'TC', 
@@ -135,7 +155,7 @@ class _ManageExamsPageState extends ConsumerState<ManageExamsPage> {
           ElevatedButton.icon(
             icon: const Icon(Icons.add_circle_outline),
             label: const Text('Créer une nouvelle épreuve'),
-            onPressed: widget.onCreateExam, // Utilisation du callback
+            onPressed: widget.onCreateExam,
             style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16)),
           ),
           const SizedBox(height: 20),
@@ -148,11 +168,13 @@ class _ManageExamsPageState extends ConsumerState<ManageExamsPage> {
                 child: DropdownButtonFormField<String?>(
                   decoration: const InputDecoration(labelText: 'Niveau', border: OutlineInputBorder()),
                   value: selectedNiveau,
-                  hint: const Text('Choisir Niveau'),
-                  items: niveauState.niveaux.map((niveau) => DropdownMenuItem<String?>(
+                  hint: const Text('Tous les niveaux'),
+                  isExpanded: true,
+                  items: [ 
+                    const DropdownMenuItem<String?>(value: null, child: Text('Tous les niveaux')), ...niveauState.niveaux.map((niveau) => DropdownMenuItem<String?>(
                     value: niveau.code,
                     child: Text(niveau.nom, overflow: TextOverflow.ellipsis),
-                  )).toList(),
+                  )).toList()],
                   onChanged: (newNiveauCode) {
                     ref.read(selectedNiveauCodeExamsProvider.notifier).set(newNiveauCode);
                     ref.read(selectedSerieCodeExamsProvider.notifier).set(null);
@@ -160,9 +182,9 @@ class _ManageExamsPageState extends ConsumerState<ManageExamsPage> {
                     if (newNiveauCode == '3eme') {
                       ref.read(selectedSerieCodeExamsProvider.notifier).set('TC');
                       ref.read(matiereProvider.notifier).fetchMatieres(niveauCode: newNiveauCode, serieCode: 'TC');
-                    } else {
-                      ref.read(matiereProvider.notifier).clearDataAndError();
-                    }
+                    } else if (newNiveauCode == null) {
+                       ref.read(matiereProvider.notifier).clearDataAndError();
+                    } 
                   },
                 ),
               ),
@@ -174,10 +196,11 @@ class _ManageExamsPageState extends ConsumerState<ManageExamsPage> {
                     border: const OutlineInputBorder(),
                     filled: selectedNiveau == '3eme',
                     fillColor: selectedNiveau == '3eme' ? Colors.grey[200] : null,
+                    hintText: 'Toutes les séries',
                   ),
                   value: selectedNiveau == '3eme' ? 'TC' : selectedSerie,
-                  hint: const Text('Choisir Série'),
-                  items: _buildSerieDropdownItems(serieState.series, selectedNiveau),
+                  isExpanded: true,
+                  items: [const DropdownMenuItem<String?>(value: null, child: Text('Toutes les séries')), ..._buildSerieDropdownItems(serieState.series, selectedNiveau)],
                   onChanged: selectedNiveau == null || selectedNiveau == '3eme' ? null : (newSerieCode) {
                     ref.read(selectedSerieCodeExamsProvider.notifier).set(newSerieCode);
                     ref.read(selectedMatiereIdExamsProvider.notifier).set(null);
@@ -194,27 +217,34 @@ class _ManageExamsPageState extends ConsumerState<ManageExamsPage> {
                 child: DropdownButtonFormField<int?>(
                   decoration: const InputDecoration(labelText: 'Matière', border: OutlineInputBorder()),
                   value: selectedMatiere,
-                  hint: const Text('Choisir Matière'),
+                  hint: const Text('Toutes les matières'),
+                  isExpanded: true,
                   disabledHint: const Text('Niveau & Série requis'),
-                  items: matiereState.matieres.map((matiere) => DropdownMenuItem<int?>(
+                  items: [const DropdownMenuItem<int?>(value: null, child: Text('Toutes les matières')), ...matiereState.matieres.map((matiere) => DropdownMenuItem<int?>(
                     value: matiere.id,
                     child: Text(matiere.nom, overflow: TextOverflow.ellipsis),
-                  )).toList(),
-                  onChanged: (matiereState.isLoading || matiereState.matieres.isEmpty) ? null : (newMatiereId) {
+                  )).toList()],
+                  onChanged: (matiereState.isLoading || (selectedNiveau != null && selectedSerie != null && matiereState.matieres.isEmpty && !matiereState.isLoading)) ? null : (newMatiereId) {
                     ref.read(selectedMatiereIdExamsProvider.notifier).set(newMatiereId);
                   },
                 ),
               ),
               SizedBox(
-                width: 300,
+                width: 240,
                 child: DropdownButtonFormField<EpreuveType?>(
                   decoration: const InputDecoration(labelText: 'Type d\'épreuve', border: OutlineInputBorder()),
                   value: selectedType,
-                  hint: const Text('Choisir Type'),
-                  items: [EpreuveType.ancienSujet, EpreuveType.sujetCollege].map((type) => DropdownMenuItem<EpreuveType?>(
-                    value: type,
-                    child: Text(_getEpreuveTypeDisplay(type), overflow: TextOverflow.ellipsis),
-                  )).toList(),
+                  hint: const Text('Tous les types'),
+                  isExpanded: true,
+                  items: [
+                    const DropdownMenuItem<EpreuveType?>(value: null, child: Text('Tous les types')),
+                    ...[EpreuveType.ancienSujet, EpreuveType.sujetCollege]
+                        .map((type) => DropdownMenuItem<EpreuveType?>(
+                              value: type,
+                              child: Text(type.displayName, overflow: TextOverflow.ellipsis),
+                            ))
+                        .toList()
+                  ],
                   onChanged: (value) => ref.read(selectedEpreuveTypeExamsProvider.notifier).set(value),
                 ),
               ),
@@ -234,16 +264,31 @@ class _ManageExamsPageState extends ConsumerState<ManageExamsPage> {
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
-                        title: Text(epreuve.nom),
-                        subtitle: Text('${epreuve.typeEpreuveDisplay} - ${epreuve.niveauScolaireDisplay} - ${Epreuve.statutToStringDisplay(epreuve.statut)}'),
-                        onTap: () => widget.onEditExam(epreuve.id.toString()), // Utilisation du callback
+                        title: Text(epreuve.nom, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('${epreuve.matiereDisplay} - ${epreuve.niveauScolaireDisplay} (${epreuve.seriesCodes.join(', ')})\nStatut: ${Epreuve.statutToStringDisplay(epreuve.statut)}'),
+                        isThreeLine: true,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, color: Colors.blueAccent),
+                              tooltip: 'Modifier',
+                              onPressed: () => widget.onEditExam(epreuve.id.toString()),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                              tooltip: 'Supprimer',
+                              onPressed: () => _showDeleteConfirmationDialog(context, ref, epreuve),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, stack) => Center(child: Text('Erreur: $err')),
+              error: (err, stack) => Center(child: Text('Erreur de chargement: $err')),
             ),
           ),
         ],

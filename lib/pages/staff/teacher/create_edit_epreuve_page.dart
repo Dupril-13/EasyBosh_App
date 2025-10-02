@@ -1,9 +1,14 @@
 import 'package:easybosh_v2/models/epreuve_model.dart';
-import 'package:easybosh_v2/providers/filters_providers.dart'; 
+import 'package:easybosh_v2/pages/staff/teacher/manage_exams_page.dart'; // For providers
+import 'package:easybosh_v2/providers/filters_providers.dart';
+import 'package:easybosh_v2/providers/matiere_provider.dart';
+import 'package:easybosh_v2/services/epreuve_service.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // For FilteringTextInputFormatter
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
 
 class CreateEditEpreuvePage extends ConsumerStatefulWidget {
   final String? epreuveId;
@@ -11,7 +16,7 @@ class CreateEditEpreuvePage extends ConsumerStatefulWidget {
   final VoidCallback onSubmitted;
 
   const CreateEditEpreuvePage({
-    super.key, 
+    super.key,
     this.epreuveId,
     required this.onCancel,
     required this.onSubmitted,
@@ -31,16 +36,22 @@ class _CreateEditEpreuvePageState extends ConsumerState<CreateEditEpreuvePage> {
   late TextEditingController _nomEtablissementController;
   late TextEditingController _villeEtablissementController;
 
+  PlatformFile? _sujetPdfFile;
+  PlatformFile? _corrigePdfFile;
+  String? _sujetNetworkUrl;
+  String? _corrigeNetworkUrl;
+  bool _isLoading = false;
+  bool _dataLoaded = false;
+
   EpreuveType? _selectedEpreuveType;
   NiveauSelectionItem? _selectedNiveauLocalUI;
   MatiereSelectionItem? _selectedMatiereLocalUI;
-  Map<String, bool> _selectedSeriesMapUI = {}; 
+  Map<String, bool> _selectedSeriesMapUI = {};
   bool _isActif = true;
   TypeExamenOfficiel? _selectedTypeExamenOfficiel;
   DateTime? _selectedDateCompositionCollege;
 
   bool get _isEditing => widget.epreuveId != null;
-  bool _isSeriesSelectionDisabled = false;
 
   @override
   void initState() {
@@ -48,12 +59,64 @@ class _CreateEditEpreuvePageState extends ConsumerState<CreateEditEpreuvePage> {
     _titreController = TextEditingController();
     _dureeController = TextEditingController();
     _descriptionController = TextEditingController();
-    _anneeExamenController = TextEditingController(text: DateTime.now().year.toString());
+    _anneeExamenController = TextEditingController();
     _nomEtablissementController = TextEditingController();
     _villeEtablissementController = TextEditingController();
 
     if (_isEditing) {
-      // TODO: Charger les données de l'épreuve et initialiser les champs
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadEpreuveData());
+    } else {
+      _dataLoaded = true; // For creation mode, data is 'loaded' instantly
+    }
+  }
+
+  void _loadEpreuveData() async {
+    setState(() => _isLoading = true);
+    try {
+      final epreuveId = int.parse(widget.epreuveId!);
+      final epreuve = await ref.read(epreuveServiceProvider).getEpreuveById(epreuveId);
+
+      _titreController.text = epreuve.nom;
+      _dureeController.text = epreuve.dureeMinutes.toString();
+      _descriptionController.text = epreuve.description ?? '';
+      _selectedEpreuveType = epreuve.typeEpreuve;
+
+      final allNiveaux = await ref.read(niveauxProvider.future);
+      final selectedNiveau = allNiveaux.firstWhere((n) => n.code == epreuve.niveauCode, orElse: () => allNiveaux.first);
+      _selectedNiveauLocalUI = selectedNiveau;
+      ref.read(selectedNiveauCodeExamsProvider.notifier).set(epreuve.niveauCode);
+      
+      final serieCodeForMatiere = epreuve.seriesCodes.isNotEmpty ? epreuve.seriesCodes.first : 'TC';
+      await ref.read(matiereProvider.notifier).fetchMatieres(niveauCode: epreuve.niveauCode, serieCode: serieCodeForMatiere);
+      
+      final allMatieres = ref.read(matiereProvider).matieres;
+      if (allMatieres.any((m) => m.id == epreuve.matiereId)) {
+        final epreuveMatiere = allMatieres.firstWhere((m) => m.id == epreuve.matiereId);
+        _selectedMatiereLocalUI = MatiereSelectionItem(id: epreuveMatiere.id, nomDisplay: epreuveMatiere.nom);
+      }
+
+      final allSeries = await ref.read(seriesForSelectionProvider.future);
+      _selectedSeriesMapUI = { for (var s in allSeries) s.code : epreuve.seriesCodes.contains(s.code) };
+
+      _isActif = epreuve.statut == EpreuveStatut.publiee;
+      _sujetNetworkUrl = epreuve.sujetPdfUrl;
+      _corrigeNetworkUrl = epreuve.corrigePdfUrl;
+
+      if (epreuve.typeEpreuve == EpreuveType.ancienSujet) {
+        _anneeExamenController.text = epreuve.anneeExamen?.toString() ?? DateTime.now().year.toString();
+        _selectedTypeExamenOfficiel = Epreuve.stringToTypeExamenOfficiel(epreuve.sessionExamen);
+      }
+
+      if (epreuve.typeEpreuve == EpreuveType.sujetCollege) {
+        _nomEtablissementController.text = epreuve.nomEtablissement ?? '';
+        _villeEtablissementController.text = epreuve.villeEtablissement ?? '';
+        _selectedDateCompositionCollege = epreuve.dateCompositionCollege;
+      }
+      _dataLoaded = true;
+    } catch (e) {
+        if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erreur de chargement de l\'épreuve: $e"), backgroundColor: Colors.red));
+    } finally {
+        if(mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -68,222 +131,252 @@ class _CreateEditEpreuvePageState extends ConsumerState<CreateEditEpreuvePage> {
     super.dispose();
   }
 
+  Future<void> _pickSujetFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+    if (result != null) setState(() {
+      _sujetPdfFile = result.files.first;
+      _sujetNetworkUrl = null;
+    });
+  }
+
+  Future<void> _pickCorrigeFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+    if (result != null) setState(() {
+       _corrigePdfFile = result.files.first;
+       _corrigeNetworkUrl = null;
+    });
+  }
+
   void _onNiveauChanged(NiveauSelectionItem? newValue) {
     setState(() {
       _selectedNiveauLocalUI = newValue;
-      _selectedMatiereLocalUI = null; 
-      _selectedSeriesMapUI.keys.forEach((key) => _selectedSeriesMapUI[key] = false);
-      _isSeriesSelectionDisabled = (newValue?.code == '3eme');
-      
-      ref.read(selectedNiveauCodeProvider.notifier).update(newValue?.code);
-      ref.read(selectedSeriesCodesForFilterProvider.notifier).update([]);
-
-      if (_selectedTypeExamenOfficiel == TypeExamenOfficiel.bepc && newValue?.code != '3eme') {
-        _selectedTypeExamenOfficiel = null;
+      _selectedMatiereLocalUI = null;
+      if (_selectedSeriesMapUI.isNotEmpty) {
+        _selectedSeriesMapUI.keys.forEach((key) => _selectedSeriesMapUI[key] = false);
       }
-      if ((_selectedTypeExamenOfficiel == TypeExamenOfficiel.probatoire || _selectedTypeExamenOfficiel == TypeExamenOfficiel.baccalaureat) && newValue?.code == '3eme'){
-        _selectedTypeExamenOfficiel = null;
+      
+      ref.read(selectedNiveauCodeExamsProvider.notifier).set(newValue?.code);
+
+      final newSerieCode = (newValue?.code == '3eme') ? 'TC' : null;
+      ref.read(selectedSerieCodeExamsProvider.notifier).set(newSerieCode);
+
+      if(newValue != null && newSerieCode != null) {
+        ref.read(matiereProvider.notifier).fetchMatieres(niveauCode: newValue.code, serieCode: newSerieCode);
+      } else if (newValue != null) {
+        ref.read(matiereProvider.notifier).clearDataAndError();
       }
     });
   }
 
-  void _changeYear(int amount) {
-    int currentYear = int.tryParse(_anneeExamenController.text) ?? DateTime.now().year;
-    currentYear += amount;
-    if (currentYear > 2000 && currentYear <= DateTime.now().year + 1) {
-      setState(() {
-        _anneeExamenController.text = currentYear.toString();
-      });
-    }
+  void _onSerieChanged(String serieCode, bool isSelected) {
+    setState(() {
+      _selectedSeriesMapUI[serieCode] = isSelected;
+      _selectedMatiereLocalUI = null;
+      final selectedSeries = _selectedSeriesMapUI.entries.where((e) => e.value).map((e) => e.key).toList();
+      ref.read(selectedSerieCodeExamsProvider.notifier).set(selectedSeries.isNotEmpty ? selectedSeries.first : null);
+
+      if(_selectedNiveauLocalUI != null && selectedSeries.isNotEmpty) {
+        ref.read(matiereProvider.notifier).fetchMatieres(niveauCode: _selectedNiveauLocalUI!.code, serieCode: selectedSeries.first);
+      } else {
+        ref.read(matiereProvider.notifier).clearDataAndError();
+      }
+    });
   }
 
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
-      print('Formulaire valide, soumission en cours...');
-      // TODO: Implémenter la sauvegarde
-      widget.onSubmitted(); // Appel du callback
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez corriger les erreurs du formulaire.'), backgroundColor: Colors.red),
-      );
+  void _submitForm() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (!_isEditing && _sujetPdfFile == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Le fichier PDF du sujet est obligatoire pour une nouvelle épreuve.'), backgroundColor: Colors.red));
+        return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final selectedSeries = _selectedSeriesMapUI.entries.where((e) => e.value).map((e) => e.key).toList();
+    if (_selectedNiveauLocalUI?.code == '3eme' && !selectedSeries.contains('TC')) selectedSeries.add('TC');
+
+    final epreuveData = {
+      'nom': _titreController.text,
+      'type': Epreuve.typeToString(_selectedEpreuveType!),
+      'niveau_code': _selectedNiveauLocalUI!.code,
+      'series_codes': selectedSeries,
+      'matiere_id': _selectedMatiereLocalUI!.id,
+      'duree': int.parse(_dureeController.text),
+      'description': _descriptionController.text,
+      'statut': _isActif ? 'publiee' : 'brouillon',
+      'annee': _selectedEpreuveType == EpreuveType.ancienSujet ? int.tryParse(_anneeExamenController.text) : null,
+      'session': _selectedEpreuveType == EpreuveType.ancienSujet && _selectedTypeExamenOfficiel != null ? Epreuve.typeExamenOfficielToString(_selectedTypeExamenOfficiel!) : null,
+      'nom_etablissement': _selectedEpreuveType == EpreuveType.sujetCollege ? _nomEtablissementController.text : null,
+      'ville_etablissement': _selectedEpreuveType == EpreuveType.sujetCollege ? _villeEtablissementController.text : null,
+      'date_composition_college': _selectedEpreuveType == EpreuveType.sujetCollege && _selectedDateCompositionCollege != null ? _selectedDateCompositionCollege!.toIso8601String() : null,
+    };
+
+    try {
+      final epreuveService = ref.read(epreuveServiceProvider);
+      if (_isEditing) {
+        await epreuveService.updateEpreuve(int.parse(widget.epreuveId!), epreuveData, _sujetPdfFile, _corrigePdfFile);
+      } else {
+        await epreuveService.createEpreuve(epreuveData, _sujetPdfFile!, _corrigePdfFile);
+      }
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Épreuve ${ _isEditing ? "mise à jour" : "créée"} avec succès!'), backgroundColor: Colors.green));
+      widget.onSubmitted();
+    } catch (e) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isEditing && !_dataLoaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return _buildForm(context);
+  }
+
+  Widget _buildForm(BuildContext context) {
     final niveauxAsyncValue = ref.watch(niveauxProvider);
     final seriesAsyncValue = ref.watch(seriesForSelectionProvider);
-    final matieresFiltreesAsyncValue = ref.watch(filteredMatieresListProvider);
-    final String? currentNiveauCodeFromProvider = ref.watch(selectedNiveauCodeProvider);
-
-    seriesAsyncValue.whenData((seriesList) {
-      if (_selectedSeriesMapUI.isEmpty && seriesList.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() {
-              _selectedSeriesMapUI = { for (var serie in seriesList) serie.code : false };
-            });
-          }
-        });
-      }
-    });
+    final matieresState = ref.watch(matiereProvider);
 
     return Form(
       key: _formKey,
-      child: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: <Widget>[
-          Align(
-            alignment: Alignment.topLeft,
-            child: TextButton.icon(
-              icon: const Icon(Icons.arrow_back),
-              label: const Text("Retour à la liste"),
-              onPressed: widget.onCancel, // Appel du callback
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text('Informations Générales', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          TextFormField(controller: _titreController, decoration: const InputDecoration(labelText: 'Titre de l\'épreuve', border: OutlineInputBorder()), validator: (value) => (value == null || value.isEmpty) ? 'Titre requis.' : null),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<EpreuveType>(
-            value: _selectedEpreuveType,
-            decoration: const InputDecoration(labelText: 'Type d\'épreuve', border: OutlineInputBorder()),
-            items: [EpreuveType.ancienSujet, EpreuveType.sujetCollege].map((EpreuveType type) {
-              return DropdownMenuItem<EpreuveType>(value: type, child: Text(type.displayName));
-            }).toList(),
-            onChanged: (EpreuveType? newValue) => setState(() => _selectedEpreuveType = newValue),
-            validator: (value) => value == null ? 'Type requis.' : null,
-          ),
-          const SizedBox(height: 16),
-          niveauxAsyncValue.when(
-            data: (niveaux) => DropdownButtonFormField<NiveauSelectionItem>(
-              value: _selectedNiveauLocalUI,
-              decoration: const InputDecoration(labelText: 'Niveau Scolaire', border: OutlineInputBorder()),
-              items: niveaux.map((n) => DropdownMenuItem<NiveauSelectionItem>(value: n, child: Text(n.nomDisplay))).toList(),
-              onChanged: _onNiveauChanged,
-              validator: (value) => value == null ? 'Niveau requis.' : null,
-            ),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, stack) => Text('Erreur chargement niveaux: $err'),
-          ),
-          const SizedBox(height: 16),
-          seriesAsyncValue.when(
-            data: (seriesList) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Série(s) concernée(s)', style: Theme.of(context).textTheme.titleMedium),
-                  if (seriesList.isNotEmpty) ...seriesList.map((serie) => CheckboxListTile(
-                        title: Text(serie.nomDisplay),
-                        value: _isSeriesSelectionDisabled ? false : (_selectedSeriesMapUI[serie.code] ?? false),
-                        onChanged: _isSeriesSelectionDisabled ? null : (bool? value) => setState(() => _selectedSeriesMapUI[serie.code] = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading, dense: true, enabled: !_isSeriesSelectionDisabled
-                      )).toList()
-                  else if (currentNiveauCodeFromProvider != null && currentNiveauCodeFromProvider != '3eme') 
-                      const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Text("Pas de séries à sélectionner pour ce niveau.")),
-                  if (currentNiveauCodeFromProvider == '3eme') 
-                    Padding(
-                        padding: const EdgeInsets.only(left: 16.0, top: 0, bottom: 8), 
-                        child: Text('Série: Tronc Commun (TC) automatique.', style: TextStyle(color: Colors.grey.shade700))
-                    ),
-                ],
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, stack) => Text('Erreur chargement séries: $err'),
-          ),
-          const SizedBox(height: 16),
-          matieresFiltreesAsyncValue.when(
-            data: (matieres) => DropdownButtonFormField<MatiereSelectionItem>(
-              value: _selectedMatiereLocalUI,
-              decoration: const InputDecoration(labelText: 'Matière', border: OutlineInputBorder()),
-              items: matieres.map((m) => DropdownMenuItem<MatiereSelectionItem>(value: m, child: Text(m.nomDisplay))).toList(),
-              onChanged: (MatiereSelectionItem? newValue) => setState(() => _selectedMatiereLocalUI = newValue),
-              validator: (value) => value == null ? 'Matière requise.' : null,
-              hint: const Text('Sélectionnez d\'abord niveau/série'),
-            ),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, stack) => Text('Erreur chargement matières: $err'),
-          ),
-          const SizedBox(height: 16),
-          TextFormField(controller: _dureeController, decoration: const InputDecoration(labelText: 'Durée (minutes)', border: OutlineInputBorder(), hintText: 'Ex: 120'), keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], validator: (v) => (v == null || v.isEmpty || int.tryParse(v) == null || int.parse(v) <= 0) ? 'Durée invalide.' : null),
-          const SizedBox(height: 16),
-          TextFormField(controller: _descriptionController, decoration: const InputDecoration(labelText: 'Description / Consignes', border: OutlineInputBorder(), alignLabelWithHint: true), maxLines: 4, minLines: 2),
-          const SizedBox(height: 16),
-          if (_selectedEpreuveType == EpreuveType.ancienSujet) ...[
-            Padding(padding: const EdgeInsets.symmetric(vertical: 8.0), child: Text('Détails - Ancien Sujet', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _anneeExamenController, 
-                    decoration: const InputDecoration(labelText: 'Année Examen', border: OutlineInputBorder()), 
-                    keyboardType: TextInputType.number, 
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) => (v == null || v.isEmpty || int.tryParse(v) == null || int.parse(v) < 2000 || int.parse(v) > DateTime.now().year + 1) ? 'Année invalide.' : null,
-                  ),
+      child: AbsorbPointer(
+        absorbing: _isLoading,
+        child: Stack(
+          children: [
+            ListView(
+              padding: const EdgeInsets.all(16.0),
+              children: <Widget>[
+                Align(
+                  alignment: Alignment.topLeft,
+                  child: TextButton.icon(icon: const Icon(Icons.arrow_back), label: const Text("Retour à la liste"), onPressed: widget.onCancel),
                 ),
-                IconButton(onPressed: () => _changeYear(-1), icon: const Icon(Icons.remove_circle_outline)),
-                IconButton(onPressed: () => _changeYear(1), icon: const Icon(Icons.add_circle_outline)),
+                const SizedBox(height: 16),
+                Text(_isEditing ? 'Modifier l\'épreuve' : 'Créer une nouvelle épreuve', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 24),
+                
+                TextFormField(controller: _titreController, decoration: const InputDecoration(labelText: 'Titre de l\'épreuve', border: OutlineInputBorder()), validator: (v) => v!.isEmpty ? 'Titre requis.' : null),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<EpreuveType>(
+                  value: _selectedEpreuveType,
+                  decoration: const InputDecoration(labelText: 'Type d\'épreuve', border: OutlineInputBorder()),
+                  items: [EpreuveType.ancienSujet, EpreuveType.sujetCollege].map((type) => DropdownMenuItem(value: type, child: Text(type.displayName))).toList(),
+                  onChanged: (v) => setState(() => _selectedEpreuveType = v),
+                  validator: (v) => v == null ? 'Type requis.' : null,
+                ),
+                const SizedBox(height: 16),
+                 niveauxAsyncValue.when(
+                  data: (niveaux) => DropdownButtonFormField<NiveauSelectionItem>(
+                    value: _selectedNiveauLocalUI,
+                    items: niveaux.map((n) => DropdownMenuItem(value: n, child: Text(n.nomDisplay))).toList(),
+                    onChanged: _onNiveauChanged,
+                    decoration: const InputDecoration(labelText: 'Niveau Scolaire', border: OutlineInputBorder()),
+                    validator: (v) => v == null ? 'Niveau requis.' : null,
+                  ),
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (err, stack) => Text('Erreur chargement niveaux: $err'),
+                ),
+                const SizedBox(height: 16),
+                seriesAsyncValue.when(
+                  data: (seriesList) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Série(s) concernée(s)', style: Theme.of(context).textTheme.titleMedium),
+                      ...seriesList.map((serie) => CheckboxListTile(
+                        title: Text(serie.nomDisplay),
+                        value: _selectedNiveauLocalUI?.code == '3eme' && serie.code == 'TC' ? true : (_selectedSeriesMapUI[serie.code] ?? false),
+                        onChanged: _selectedNiveauLocalUI?.code == '3eme' ? null : (val) => _onSerieChanged(serie.code, val ?? false),
+                        controlAffinity: ListTileControlAffinity.leading,
+                      )).toList(),
+                    ],
+                  ),
+                  loading: () => const SizedBox.shrink(),
+                  error: (err, st) => Text('Erreur chargement séries: $err'),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<MatiereSelectionItem>(
+                  value: _selectedMatiereLocalUI,
+                  items: matieresState.matieres.map((m) => DropdownMenuItem(value: MatiereSelectionItem(id: m.id, nomDisplay: m.nom), child: Text(m.nom))).toList(),
+                  onChanged: (v) => setState(() => _selectedMatiereLocalUI = v),
+                  decoration: const InputDecoration(labelText: 'Matière', border: OutlineInputBorder()),
+                  validator: (v) => v == null ? 'Matière requise.' : null,
+                  hint: Text(matieresState.isLoading ? 'Chargement...' : (matieresState.errorMessage ?? 'Sélectionnez d\'abord niveau/série')),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(controller: _dureeController, decoration: const InputDecoration(labelText: 'Durée (minutes)', border: OutlineInputBorder(), hintText: 'Ex: 120'), keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], validator: (v) => (v == null || v.isEmpty || int.tryParse(v) == null || int.parse(v) <= 0) ? 'Durée invalide.' : null),
+                const SizedBox(height: 16),
+                TextFormField(controller: _descriptionController, decoration: const InputDecoration(labelText: 'Description / Consignes', border: OutlineInputBorder(), alignLabelWithHint: true), maxLines: 4, minLines: 2),
+                const SizedBox(height: 16),
+                _buildFileUploadField(
+                  label: 'Sujet de l\'épreuve (PDF)',
+                  file: _sujetPdfFile,
+                  networkUrl: _sujetNetworkUrl,
+                  onPickFile: _pickSujetFile,
+                  onRemoveFile: () => setState(() { _sujetPdfFile = null; _sujetNetworkUrl = null; }),
+                  isMandatory: !_isEditing,
+                ),
+                const SizedBox(height: 16),
+                _buildFileUploadField(
+                  label: 'Corrigé de l\'épreuve (PDF, Optionnel)',
+                  file: _corrigePdfFile,
+                  networkUrl: _corrigeNetworkUrl,
+                  onPickFile: _pickCorrigeFile,
+                  onRemoveFile: () => setState(() { _corrigePdfFile = null; _corrigeNetworkUrl = null; }),
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(onPressed: _isLoading ? null : widget.onCancel, child: const Text('Annuler')),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.publish_outlined),
+                      label: Text(_isEditing ? 'Mettre à jour' : 'Publier'),
+                      onPressed: _isLoading ? null : _submitForm,
+                    ),
+                  ],
+                ),
               ],
             ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<TypeExamenOfficiel>(
-              value: _selectedTypeExamenOfficiel,
-              decoration: const InputDecoration(labelText: 'Type Examen Officiel', border: OutlineInputBorder()), 
-              items: TypeExamenOfficiel.values.where((teo) {
-                  final niveauCode = ref.watch(selectedNiveauCodeProvider); 
-                  if (niveauCode == '3eme') return teo == TypeExamenOfficiel.bepc;
-                  if (niveauCode == '1ere') return teo == TypeExamenOfficiel.probatoire;
-                  if (niveauCode == 'tle') return teo == TypeExamenOfficiel.baccalaureat;
-                  return niveauCode == null; 
-              }).map((teo) => DropdownMenuItem<TypeExamenOfficiel>(value: teo, child: Text(Epreuve.typeExamenOfficielToString(teo)))).toList(), 
-              onChanged: (val) => setState(() => _selectedTypeExamenOfficiel = val), 
-              validator: (v) => (_selectedEpreuveType == EpreuveType.ancienSujet && v == null) ? 'Type d\'examen requis.' : null
-            ),
-            const SizedBox(height: 16),
+            if (_isLoading) Container(color: Colors.black.withOpacity(0.5), child: const Center(child: CircularProgressIndicator())),
           ],
-          if (_selectedEpreuveType == EpreuveType.sujetCollege) ...[
-            Padding(padding: const EdgeInsets.symmetric(vertical: 8.0), child: Text('Détails - Sujet Collège', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
-            TextFormField(controller: _nomEtablissementController, decoration: const InputDecoration(labelText: 'Nom Établissement', border: OutlineInputBorder()), validator: (v) => (_selectedEpreuveType == EpreuveType.sujetCollege &&(v == null || v.isEmpty)) ? 'Nom requis.' : null),
-            const SizedBox(height: 16),
-            TextFormField(controller: _villeEtablissementController, decoration: const InputDecoration(labelText: 'Ville/Région Établissement', border: OutlineInputBorder()), validator: (v) => (_selectedEpreuveType == EpreuveType.sujetCollege && (v == null || v.isEmpty)) ? 'Ville requise.' : null),
-            const SizedBox(height: 16),
-            ListTile(title: Text(_selectedDateCompositionCollege == null ? 'Date de Composition' : 'Date Composition: ${DateFormat('dd/MM/yyyy').format(_selectedDateCompositionCollege!)}'), trailing: const Icon(Icons.calendar_today), onTap: () async {
-              final DateTime? picked = await showDatePicker(context: context, initialDate: _selectedDateCompositionCollege ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2101));
-              if (picked != null) setState(() => _selectedDateCompositionCollege = picked);
-            }),
-            const SizedBox(height: 16),
-          ],
-
-          Padding(padding: const EdgeInsets.symmetric(vertical: 8.0), child: Text('Publication', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
-          SwitchListTile(
-            title: const Text('Activer l\'épreuve'),
-            subtitle: Text(_isActif ? 'L\'épreuve sera visible par les utilisateurs concernés.' : 'L\'épreuve sera enregistrée comme brouillon.'),
-            value: _isActif,
-            onChanged: (bool value) {
-              setState(() {
-                _isActif = value;
-              });
-            },
-            secondary: Icon(_isActif ? Icons.check_circle_outline : Icons.unpublished_outlined),
-          ),
-          const SizedBox(height: 24),
-          Center(child: ElevatedButton.icon(icon: const Icon(Icons.save_alt_outlined), label: Text(_isEditing ? 'Mettre à jour' : 'Sauvegarder'), onPressed: _submitForm, style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)))),
-        ],
+        ),
       ),
     );
   }
-}
 
-extension EpreuveEnumDisplay on EpreuveType {
-    String get displayName {
-        switch (this) {
-            case EpreuveType.ancienSujet: return 'Ancien Sujet d\'Examen';
-            case EpreuveType.sujetCollege: return 'Sujet de Collège Connu';
-            default: return toString().split('.').last;
-        }
-    }
+  Widget _buildFileUploadField({
+    required String label,
+    PlatformFile? file,
+    String? networkUrl,
+    required VoidCallback onPickFile,
+    required VoidCallback onRemoveFile,
+    bool isMandatory = false,
+  }) {
+    final String? fileName = file?.name ?? (networkUrl != null ? p.basename(networkUrl) : null);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [Text(label, style: Theme.of(context).textTheme.titleMedium), if (isMandatory) const Text(' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))]),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+          child: Row(
+            children: [
+              Icon(Icons.picture_as_pdf_outlined, color: Colors.red.shade700),
+              const SizedBox(width: 12),
+              Expanded(child: Text(fileName ?? 'Aucun fichier sélectionné', overflow: TextOverflow.ellipsis)),
+              if (fileName != null)
+                IconButton(icon: const Icon(Icons.close, size: 20), onPressed: onRemoveFile)
+              else
+                TextButton(child: const Text('Choisir'), onPressed: onPickFile),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
