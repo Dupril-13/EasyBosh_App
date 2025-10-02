@@ -47,8 +47,12 @@ class _LeconPreviewPageState extends ConsumerState<LeconPreviewPage> {
     
     if (widget.lecon.type == 'pdf' && widget.lecon.urlMedia != null && widget.lecon.urlMedia!.isNotEmpty) {
       final isHttpUrl = widget.lecon.urlMedia!.toLowerCase().startsWith('http');
+      String platformDebugInfo = "kIsWeb=$kIsWeb";
+      if (!kIsWeb) {
+        platformDebugInfo += ", Platform.isAndroid=${Platform.isAndroid}, Platform.isIOS=${Platform.isIOS}, Platform.isWindows=${Platform.isWindows}";
+      }
       print("DEBUG initState: LeconType: ${widget.lecon.type}, PDF URL: ${widget.lecon.urlMedia}");
-      print("DEBUG initState: Platform checks: kIsWeb=$kIsWeb, Platform.isAndroid=${Platform.isAndroid}, Platform.isIOS=${Platform.isIOS}, Platform.isWindows=${Platform.isWindows}");
+      print("DEBUG initState: Platform checks: $platformDebugInfo");
 
       if (kIsWeb && isHttpUrl) {
         print("DEBUG initState: Initializing WebView for Web.");
@@ -289,10 +293,13 @@ class _LeconPreviewPageState extends ConsumerState<LeconPreviewPage> {
   }
 
  Widget _buildContentViewer(LeconModel lecon, BuildContext context) {
-    final String? mediaUrl = lecon.urlMedia; // Renommé pour plus de clarté
-    // Log initial pour le débogage
+    final String? mediaUrl = lecon.urlMedia; 
+    String platformDebugInfo = "kIsWeb=$kIsWeb";
+    if (!kIsWeb) {
+      platformDebugInfo += ", Platform.isAndroid=${Platform.isAndroid}, Platform.isIOS=${Platform.isIOS}, Platform.isWindows=${Platform.isWindows}";
+    }
     print("DEBUG: _buildContentViewer CALLED. LeconType: ${lecon.type}, Media URL: $mediaUrl");
-    print("DEBUG: Platform checks: kIsWeb=$kIsWeb, Platform.isAndroid=${Platform.isAndroid}, Platform.isIOS=${Platform.isIOS}, Platform.isWindows=${Platform.isWindows}");
+    print("DEBUG: Platform checks: $platformDebugInfo");
 
     switch (lecon.type) {
       case 'video':
@@ -303,9 +310,9 @@ class _LeconPreviewPageState extends ConsumerState<LeconPreviewPage> {
         if (_videoController != null && _videoController!.value.isInitialized) {
           videoPlayerWidget = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min, // Important pour Column dans un Expanded
+            mainAxisSize: MainAxisSize.min, 
             children: [
-              Expanded( // Pour que VideoPlayer prenne la place disponible
+              Expanded( 
                 child: AspectRatio(
                   aspectRatio: _videoController!.value.aspectRatio,
                   child: VideoPlayer(_videoController!),
@@ -324,12 +331,12 @@ class _LeconPreviewPageState extends ConsumerState<LeconPreviewPage> {
           videoPlayerWidget = const Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator(semanticsLabel: "Chargement de la vidéo...")));
         }
         
-        return Container( // Assure que le Column ne dépasse pas les contraintes
+        return Container( 
           constraints: const BoxConstraints(maxHeight: 450.0), 
           padding: const EdgeInsets.all(4.0),
           child: Column(
             children: [
-              Expanded(child: videoPlayerWidget), // Le lecteur vidéo
+              Expanded(child: videoPlayerWidget), 
               const SizedBox(height: 8),
               ElevatedButton.icon(
                 icon: const Icon(Icons.download_for_offline_outlined),
@@ -342,7 +349,7 @@ class _LeconPreviewPageState extends ConsumerState<LeconPreviewPage> {
         );
 
       case 'pdf':
-        final String? pdfUrl = mediaUrl; // alias pour la clarté dans cette section
+        final String? pdfUrl = mediaUrl; 
         print("DEBUG: PDF case entered.");
         if (pdfUrl == null || pdfUrl.isEmpty) {
           print("DEBUG: PDF Url is null or empty. Returning fallback.");
@@ -417,7 +424,7 @@ class _LeconPreviewPageState extends ConsumerState<LeconPreviewPage> {
         }
         return Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Column( // Enveloppe dans une Column pour ajouter le bouton en dessous
+          child: Column( 
             mainAxisSize: MainAxisSize.min,
             children: [
               CompactAudioPlayerWidget(

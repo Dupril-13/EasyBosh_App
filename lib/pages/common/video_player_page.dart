@@ -1,7 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb; // Import kIsWeb
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
-// import 'package:url_launcher/url_launcher.dart'; // url_launcher n'est plus utilisé directement ici pour le téléchargement
 import 'package:iconsax_flutter/iconsax_flutter.dart'; 
 import '../../../utils/download_service.dart'; // Import du DownloadService
 
@@ -24,13 +24,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   ChewieController? _chewieController;
   bool _isLoading = true;
   String? _errorMessage;
-  final DownloadService _downloadService = DownloadService(); // Instance du service
+  final DownloadService _downloadService = DownloadService(); 
   bool _isDownloading = false;
 
   @override
   void initState() {
     super.initState();
     print("VideoPlayerPage: Initializing for URL: ${widget.videoUrl}");
+    // Pour le web, s'assurer que l'URL est utilisable directement par le navigateur/video_player.
+    // Pour les plateformes mobiles, l'URL peut être une URL de stockage direct.
     _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
     _initializePlayer();
   }
@@ -87,6 +89,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   Future<void> _handleDownload() async {
+    if (kIsWeb) { // Ne pas tenter de télécharger sur le web si le service n'est pas compatible
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Le téléchargement n\'est pas disponible sur cette plateforme.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
     if (widget.videoUrl.isEmpty) return;
     if (_isDownloading) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -99,24 +107,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       _isDownloading = true;
     });
 
-    // Extraire un nom de fichier de l'URL ou utiliser le titre de la leçon
     String filename = widget.videoUrl.split('/').last;
-    if (filename.isEmpty || !filename.contains('.')) { // Si le nom de fichier est invalide ou manque d'extension
+    if (filename.isEmpty || !filename.contains('.')) { 
       filename = "${widget.lessonTitle.replaceAll(RegExp(r'[^a-zA-Z0-9_.-]'), '_')}.mp4";
     }
-    // Assurer une extension valide si elle est toujours manquante
     if (!filename.toLowerCase().endsWith('.mp4') && !filename.toLowerCase().endsWith('.mov')) {
         filename += '.mp4';
     }
-
 
     final String? filePath = await _downloadService.downloadFile(
       context: context, 
       url: widget.videoUrl,
       filename: filename,
       onReceiveProgress: (received, total) {
-        // Vous pouvez ajouter une logique de mise à jour de l'UI de progression ici si nécessaire
-        // Par exemple, en utilisant un StateProvider pour la progression
         print("VideoPlayerPage - Progression du téléchargement: $received / $total");
       },
     );
@@ -129,8 +132,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
     if (filePath != null) {
       print("Fichier vidéo sauvegardé: $filePath");
-      // Optionnel: Ouvrir le fichier après téléchargement avec open_filex si vous l'avez et le souhaitez.
-      // OpenFilex.open(filePath);
     } else {
       print("Échec du téléchargement de la vidéo.");
     }
@@ -147,7 +148,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         iconTheme: const IconThemeData(color: Colors.white), 
         titleTextStyle: const TextStyle(color: Colors.white, fontSize: 20), 
         actions: [
-          if (widget.videoUrl.isNotEmpty)
+          // Conditionnellement afficher le bouton de téléchargement
+          if (!kIsWeb && widget.videoUrl.isNotEmpty) 
             _isDownloading
               ? const Padding(
                   padding: EdgeInsets.only(right: 16.0),
@@ -155,7 +157,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 )
               : IconButton(
                   icon: const Icon(Iconsax.document_download_copy, semanticLabel: "Télécharger la vidéo"),
-                  onPressed: _handleDownload, // Appelle la nouvelle fonction de téléchargement
+                  onPressed: _handleDownload, 
                   tooltip: "Télécharger la vidéo",
                 ),
         ],

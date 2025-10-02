@@ -1,6 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart' show kIsWeb; // Import kIsWeb
 import 'package:flutter/material.dart';
-// import 'package:url_launcher/url_launcher.dart'; // url_launcher n'est plus utilisé directement ici pour le téléchargement
 import 'package:iconsax_flutter/iconsax_flutter.dart'; 
 import '../../../utils/download_service.dart'; // Import du DownloadService
 
@@ -26,7 +26,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   PlayerState _playerState = PlayerState.stopped;
   bool _isLoading = true;
   String? _errorMessage;
-  final DownloadService _downloadService = DownloadService(); // Instance du service
+  final DownloadService _downloadService = DownloadService(); 
   bool _isDownloading = false;
 
   @override
@@ -115,6 +115,12 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   }
 
   Future<void> _handleDownload() async {
+    if (kIsWeb) { // Ne pas tenter de télécharger sur le web si le service n'est pas compatible
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Le téléchargement n\'est pas disponible sur cette plateforme.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
     if (widget.audioUrl.isEmpty) return;
      if (_isDownloading) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -166,7 +172,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       appBar: AppBar(
         title: Text(widget.lessonTitle),
         actions: [
-          if (widget.audioUrl.isNotEmpty)
+          // Conditionnellement afficher le bouton de téléchargement
+          if (!kIsWeb && widget.audioUrl.isNotEmpty) 
             _isDownloading
               ? const Padding(
                   padding: EdgeInsets.only(right: 16.0),
@@ -174,7 +181,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                 )
               : IconButton(
                   icon: const Icon(Iconsax.document_download_copy, semanticLabel: "Télécharger l'audio"), 
-                  onPressed: _handleDownload, // Appelle la nouvelle fonction de téléchargement
+                  onPressed: _handleDownload,
                   tooltip: "Télécharger l'audio",
                 ),
         ],

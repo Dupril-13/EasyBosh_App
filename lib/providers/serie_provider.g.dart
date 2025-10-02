@@ -40,7 +40,7 @@ final class SerieProvider extends $NotifierProvider<Serie, SerieState> {
   }
 }
 
-String _$serieHash() => r'e2bc9ed742386b84f810d48a0398a54802b573f1';
+String _$serieHash() => r'22c7974d7924a9a69db4f1130de823829cd9da05';
 
 abstract class _$Serie extends $Notifier<SerieState> {
   SerieState build();

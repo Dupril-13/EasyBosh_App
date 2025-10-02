@@ -41,7 +41,7 @@ final class RecentLeconsProvider
   }
 }
 
-String _$recentLeconsHash() => r'b60d841732228761217be1680e6b4e5cb62dd9b1';
+String _$recentLeconsHash() => r'1f6a2e88c3f268d6cf2abb872ce03faf333d778a';
 
 abstract class _$RecentLecons extends $Notifier<RecentLeconsState> {
   RecentLeconsState build();

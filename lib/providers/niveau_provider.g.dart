@@ -40,7 +40,7 @@ final class NiveauProvider extends $NotifierProvider<Niveau, NiveauState> {
   }
 }
 
-String _$niveauHash() => r'5ae31b51bdc93b584156d1c0bcb7a241498ee9b1';
+String _$niveauHash() => r'e12075cb5d435ee68865ec7d3438dd9621e743c3';
 
 abstract class _$Niveau extends $Notifier<NiveauState> {
   NiveauState build();

@@ -8,6 +8,7 @@ import './manage_chapitres_page.dart';
 import './manage_lecons_page.dart';
 import './edit_chapitre_page.dart'; 
 import './edit_lecon_page.dart';
+import './manage_exams_page.dart'; // Importation de ManageExamsPage
 
 enum TeacherDashboardSection {
   overview,
@@ -57,10 +58,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     setState(() {
       _selectedSection = TeacherDashboardSection.manageLessonsForChapter;
       _currentChapitreIdForLessons = chapitre.id;
-      // Mémoriser le contexte du chapitre si on veut pré-remplir les filtres en revenant
-      // _currentNiveauCodeForFilter = chapitre.niveauCode;
-      // _currentSerieCodeForFilter = chapitre.serieCode;
-      // _currentMatiereIdForChapitresFilter = chapitre.matiereId;
       _editingChapitreId = null; 
       _editingLeconId = null;
     });
@@ -77,7 +74,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   void _navigateToAddChapitre() {
     if (_currentNiveauCodeForFilter == null || _currentSerieCodeForFilter == null || _currentMatiereIdForChapitresFilter == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: const Text(r"Veuillez sélectionner un niveau, une série et une matière avant d''''''''ajouter un chapitre."), backgroundColor: Colors.orange)
+            SnackBar(content: const Text(r"Veuillez sélectionner un niveau, une série et une matière avant d\''''''''ajouter un chapitre."), backgroundColor: Colors.orange)
         );
         return;
     }
@@ -91,8 +88,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     setState(() {
       _selectedSection = TeacherDashboardSection.editChapter;
       _editingChapitreId = chapitre.id; 
-      // Mettre à jour les filtres actuels avec ceux du chapitre édité
-      // pour que ManageChapitresPage soit correctement filtré si l'utilisateur annule.
       _currentNiveauCodeForFilter = chapitre.niveauCode;
       _currentSerieCodeForFilter = chapitre.serieCode;
       _currentMatiereIdForChapitresFilter = chapitre.matiereId;
@@ -122,10 +117,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       } else {
         _selectedSection = TeacherDashboardSection.manageChapters;
       }
-      // Les filtres (_currentNiveauCodeForFilter, etc.) sont conservés.
-      // Si l'ajout/modif d'un chapitre a changé son contexte (peu probable avec UI actuelle),
-      // les filtres pourraient ne plus correspondre. C'est géré par ManageChapitresPage
-      // qui revalidera son _selectedMatiereId au besoin.
       _editingChapitreId = null;
       _editingLeconId = null;
     });
@@ -253,9 +244,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         title = 'Gestion des Chapitres';
         content = ManageChapitresPage(
           onChapitreSelected: _navigateToChapitreLessons,
-          initialNiveauCode: _currentNiveauCodeForFilter,     // Passer le filtre mémorisé
-          initialSerieCode: _currentSerieCodeForFilter,       // Passer le filtre mémorisé
-          initialMatiereId: _currentMatiereIdForChapitresFilter, // Passer le filtre mémorisé
+          initialNiveauCode: _currentNiveauCodeForFilter,    
+          initialSerieCode: _currentSerieCodeForFilter,      
+          initialMatiereId: _currentMatiereIdForChapitresFilter, 
           onFiltersChanged: (newNiveauCode, newSerieCode, newMatiereId) {
             setState(() {
               _currentNiveauCodeForFilter = newNiveauCode;
@@ -306,7 +297,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         break;
       case TeacherDashboardSection.examManagement:
         title = 'Gestion des Épreuves';
-        content = const Center(child: Text('Contenu de la Gestion des Épreuves.')); 
+        content = const ManageExamsPage(); // MODIFIÉ: Utilisation de ManageExamsPage
         break;
       case TeacherDashboardSection.quizManagement:
         title = 'Gestion des Quiz';
