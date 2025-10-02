@@ -8,15 +8,17 @@ import './manage_chapitres_page.dart';
 import './manage_lecons_page.dart';
 import './edit_chapitre_page.dart'; 
 import './edit_lecon_page.dart';
-import './manage_exams_page.dart'; // Importation de ManageExamsPage
+import './manage_exams_page.dart';
+import './create_edit_epreuve_page.dart'; // Importer la page du formulaire
 
 enum TeacherDashboardSection {
   overview,
   manageChapters,
   manageLessonsForChapter,
-  editChapter,      // Pour ajout/modification de chapitre
-  editLesson,       // Pour ajout/modification de leçon
+  editChapter,
+  editLesson,
   examManagement,
+  createOrEditExam, // Nouvel état pour le formulaire d'épreuve
   quizManagement,
   profileManagement,
 }
@@ -33,24 +35,42 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   
   int? _currentChapitreIdForLessons; 
   
-  // Filtres actifs pour la gestion des chapitres, mémorisés dans TeacherDashboardPage
   String? _currentNiveauCodeForFilter;
   String? _currentSerieCodeForFilter;
   int? _currentMatiereIdForChapitresFilter;
 
   int? _editingChapitreId; 
-  int? _editingLeconId;    
+  int? _editingLeconId;
+  String? _editingEpreuveId; // Pour savoir si on édite ou crée une épreuve
 
   void _handleNavigation(TeacherDashboardSection section) {
     setState(() {
       _selectedSection = section;
-      if (section != TeacherDashboardSection.editChapter && section != TeacherDashboardSection.editLesson) {
-        _editingChapitreId = null;
-        _editingLeconId = null;
-      }
-      if (section != TeacherDashboardSection.manageLessonsForChapter && section != TeacherDashboardSection.editLesson) {
-         _currentChapitreIdForLessons = null;
-      }
+      _editingChapitreId = null;
+      _editingLeconId = null;
+      _editingEpreuveId = null;
+      _currentChapitreIdForLessons = null;
+    });
+  }
+  
+  void _navigateToCreateExam() {
+    setState(() {
+      _selectedSection = TeacherDashboardSection.createOrEditExam;
+      _editingEpreuveId = null; // C'est une création
+    });
+  }
+
+  void _navigateToEditExam(String epreuveId) {
+    setState(() {
+      _selectedSection = TeacherDashboardSection.createOrEditExam;
+      _editingEpreuveId = epreuveId; // C'est une édition
+    });
+  }
+
+  void _handleExamFormCompletion() {
+    setState(() {
+      _selectedSection = TeacherDashboardSection.examManagement;
+      _editingEpreuveId = null;
     });
   }
 
@@ -74,7 +94,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   void _navigateToAddChapitre() {
     if (_currentNiveauCodeForFilter == null || _currentSerieCodeForFilter == null || _currentMatiereIdForChapitresFilter == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: const Text(r"Veuillez sélectionner un niveau, une série et une matière avant d\''''''''ajouter un chapitre."), backgroundColor: Colors.orange)
+            SnackBar(content: const Text(r"Veuillez sélectionner un niveau, une série et une matière avant d'ajouter un chapitre."), backgroundColor: Colors.orange)
         );
         return;
     }
@@ -164,6 +184,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             icon: Icons.assignment_outlined,
             title: 'Gestion Épreuves',
             currentSection: TeacherDashboardSection.examManagement,
+             isActiveOverride: _selectedSection == TeacherDashboardSection.createOrEditExam,
             onTap: () => _handleNavigation(TeacherDashboardSection.examManagement)
           ),
           _buildSidebarItem(
@@ -248,11 +269,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           initialSerieCode: _currentSerieCodeForFilter,      
           initialMatiereId: _currentMatiereIdForChapitresFilter, 
           onFiltersChanged: (newNiveauCode, newSerieCode, newMatiereId) {
-            setState(() {
-              _currentNiveauCodeForFilter = newNiveauCode;
-              _currentSerieCodeForFilter = newSerieCode;
-              _currentMatiereIdForChapitresFilter = newMatiereId;
-            });
+             if (mounted) {
+              setState(() {
+                _currentNiveauCodeForFilter = newNiveauCode;
+                _currentSerieCodeForFilter = newSerieCode;
+                _currentMatiereIdForChapitresFilter = newMatiereId;
+              });
+            }
           },
           onAddChapitre: _navigateToAddChapitre,       
           onEditChapitre: _navigateToEditChapitre,     
@@ -297,7 +320,18 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         break;
       case TeacherDashboardSection.examManagement:
         title = 'Gestion des Épreuves';
-        content = const ManageExamsPage(); // MODIFIÉ: Utilisation de ManageExamsPage
+        content = ManageExamsPage(
+            onCreateExam: _navigateToCreateExam,
+            onEditExam: _navigateToEditExam,
+        );
+        break;
+      case TeacherDashboardSection.createOrEditExam:
+        title = _editingEpreuveId == null ? 'Créer une Épreuve' : 'Modifier une Épreuve';
+        content = CreateEditEpreuvePage(
+            epreuveId: _editingEpreuveId,
+            onCancel: _handleExamFormCompletion,
+            onSubmitted: _handleExamFormCompletion,
+        );
         break;
       case TeacherDashboardSection.quizManagement:
         title = 'Gestion des Quiz';

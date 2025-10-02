@@ -46,8 +46,6 @@ import '../../pages/staff/admin/activity_logs_page.dart';
 import '../../pages/staff/admin/admin_profile_page.dart';
 import '../../pages/staff/teacher/teacher_dashboard_page.dart';
 import '../../pages/staff/teacher/edit_chapitre_page.dart';   
-import '../../pages/staff/teacher/manage_exams_page.dart';
-import '../../pages/staff/teacher/create_edit_epreuve_page.dart'; // AJOUTÉ
 import '../../pages/staff/teacher/manage_quizzes_page.dart';
 import '../../pages/staff/teacher/teacher_analytics_page.dart';
 import '../../pages/staff/teacher/teacher_profile_page.dart';
@@ -136,26 +134,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/teacher/cours/lecons/add', name: 'teacherAddLecon', builder: (context, state) => const Center(child: Text("Pour ajouter une leçon, passez par la gestion des cours du tableau de bord enseignant."))),
       GoRoute(path: '/teacher/cours/lecons/:leconId/edit', name: 'teacherEditLecon', builder: (context, state) => const Center(child: Text("Pour modifier une leçon, passez par la gestion des cours du tableau de bord enseignant."))),
-      GoRoute(
-        path: '/teacher/manage-exams',
-        name: 'teacherManageExams',
-        builder: (BuildContext context, GoRouterState state) => const ManageExamsPage(), 
-        routes: [
-          GoRoute(
-            path: 'create', // Chemin relatif: /teacher/manage-exams/create
-            name: 'teacherCreateExam',
-            builder: (context, state) => const CreateEditEpreuvePage(),
-          ),
-          GoRoute(
-            path: 'edit/:epreuveId', // Chemin relatif: /teacher/manage-exams/edit/ID_DE_L_EPREUVE
-            name: 'teacherEditExam',
-            builder: (context, state) {
-              final epreuveId = state.pathParameters['epreuveId'];
-              return CreateEditEpreuvePage(epreuveId: epreuveId);
-            },
-          ),
-        ]
-      ),
       GoRoute(path: '/teacher/manage-quizzes', name: 'teacherManageQuizzes', builder: (BuildContext context, GoRouterState state) => const ManageQuizzesPage()), 
       GoRoute(path: '/teacher/analytics', name: 'teacherAnalytics', builder: (BuildContext context, GoRouterState state) => const TeacherAnalyticsPage()), 
       GoRoute(path: '/teacher/profile', name: 'teacherProfile', builder: (BuildContext context, GoRouterState state) => const TeacherProfilePage()), 

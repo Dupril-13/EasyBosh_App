@@ -50,6 +50,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
     _selectedMatiereId = widget.initialMatiereId;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
       bool niveauFetched = false;
       bool serieFetched = false;
 
@@ -66,6 +67,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
          setState(() {}); 
       }
       
+      if (!mounted) return;
       final niveaux = ref.read(niveauProvider).niveaux;
       final series = ref.read(serieProvider).series;
 
@@ -91,12 +93,14 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
       }
 
       if (_selectedNiveauCode != null && effectiveSerieCodeForFetch != null) {
+        if (!mounted) return;
         await ref.read(matiereProvider.notifier).fetchMatieres(
           niveauCode: _selectedNiveauCode!,
           serieCode: effectiveSerieCodeForFetch
         );
         if (mounted) setState((){}); 
 
+        if (!mounted) return;
         if (_selectedMatiereId != null && !ref.read(matiereProvider).matieres.any((m) => m.id == _selectedMatiereId)){
             _selectedMatiereId = null; 
         }
@@ -105,6 +109,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
         _fetchFilteredChapitres(); 
 
       } else {
+        if (!mounted) return;
         ref.read(matiereProvider.notifier).clearDataAndError(); 
         ref.read(chapitreProvider.notifier).clearChapitres();
       }
@@ -119,6 +124,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
     }
 
     if (_selectedNiveauCode != null && serieCodeToFetch != null) {
+      if (!mounted) return;
       ref.read(matiereProvider.notifier).fetchMatieres(
         niveauCode: _selectedNiveauCode!,
         serieCode: serieCodeToFetch
@@ -129,14 +135,15 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
             _selectedMatiereId = null;
             matiereChanged = true;
           }
-          if(matiereChanged && mounted) {
+          if(matiereChanged) {
             setState(() {}); 
           }
+          _fetchFilteredChapitres(); 
+          widget.onFiltersChanged?.call(_selectedNiveauCode, _selectedSerieCode, _selectedMatiereId);
         }
-        _fetchFilteredChapitres(); 
-        widget.onFiltersChanged?.call(_selectedNiveauCode, _selectedSerieCode, _selectedMatiereId);
       });
     } else {
+      if (!mounted) return;
       ref.read(matiereProvider.notifier).clearDataAndError();
       ref.read(chapitreProvider.notifier).clearChapitres();
       widget.onFiltersChanged?.call(_selectedNiveauCode, _selectedSerieCode, _selectedMatiereId);
@@ -150,12 +157,14 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
     }
 
     if (_selectedMatiereId != null && _selectedNiveauCode != null && effectiveSerieCode != null) {
+      if (!mounted) return;
       ref.read(chapitreProvider.notifier).fetchChapitres(
         _selectedMatiereId!,
         niveauCode: _selectedNiveauCode, 
         serieCode: effectiveSerieCode     
       );
     } else {
+      if (!mounted) return;
       ref.read(chapitreProvider.notifier).clearChapitres();
     }
      widget.onFiltersChanged?.call(_selectedNiveauCode, _selectedSerieCode, _selectedMatiereId);
@@ -378,6 +387,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
                         ),
                       );
                       if (confirm == true) {
+                        if (!mounted) return;
                         final success = await ref.read(chapitreProvider.notifier).deleteChapitre(
                           chapitre.id,
                           currentMatiereId: _selectedMatiereId, 
@@ -406,6 +416,7 @@ class _ManageChapitresPageState extends ConsumerState<ManageChapitresPage> {
           final ChapitreModel item = reorderedList.removeAt(oldIndex);
           reorderedList.insert(newIndex, item);
           
+          if (!mounted) return;
           ref.read(chapitreProvider.notifier).updateChapitresOrder(
             reorderedList, 
             matiereId: _selectedMatiereId!,
