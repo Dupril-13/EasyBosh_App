@@ -48,7 +48,7 @@ final class FiltersServiceProvider
   }
 }
 
-String _$filtersServiceHash() => r'1f0024bda80e6237f0774c914ca1d1a9d4484cc3';
+String _$filtersServiceHash() => r'4a3b2f6ab0a7305bc6a04935cc796824d0550e8a';
 
 @ProviderFor(niveaux)
 const niveauxProvider = NiveauxProvider._();
@@ -89,7 +89,7 @@ final class NiveauxProvider
   }
 }
 
-String _$niveauxHash() => r'a07d75e44668b7925acbf9e9ce6acf7ee5b501a7';
+String _$niveauxHash() => r'ff1c4ef666bff922cd0474ab92e4d889d5a05937';
 
 @ProviderFor(seriesForSelection)
 const seriesForSelectionProvider = SeriesForSelectionProvider._();
@@ -131,7 +131,7 @@ final class SeriesForSelectionProvider
 }
 
 String _$seriesForSelectionHash() =>
-    r'5e7ba99b6ed53da3af9d417c89fed2566854917d';
+    r'8cfd573d21573ec52a8d14b4aace3c789a058995';
 
 @ProviderFor(allMatieres)
 const allMatieresProvider = AllMatieresProvider._();
@@ -172,7 +172,7 @@ final class AllMatieresProvider
   }
 }
 
-String _$allMatieresHash() => r'5860c9b4c29a3215d6bced210a19a3b58e3c24f0';
+String _$allMatieresHash() => r'7ca78de0e4f945d61e511ea54ecaaf34c76ae3b8';
 
 @ProviderFor(SelectedNiveauCode)
 const selectedNiveauCodeProvider = SelectedNiveauCodeProvider._();
@@ -323,4 +323,4 @@ final class FilteredMatieresListProvider
 }
 
 String _$filteredMatieresListHash() =>
-    r'8f98cb4e610c9654c2d50aeb136dd479d1f71df3';
+    r'fb9f003bb4ee14549d2a9f9d452baf1ad49fca1c';
