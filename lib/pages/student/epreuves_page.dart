@@ -5,6 +5,7 @@ import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:easybosh_v2/widgets/custom_navbar.dart';
 import 'package:easybosh_v2/models/epreuve_model.dart';
 import 'package:easybosh_v2/providers/student_epreuves_provider.dart';
+import 'package:easybosh_v2/widgets/student/epreuve_card.dart';
 
 class EpreuvesPage extends ConsumerStatefulWidget {
   const EpreuvesPage({super.key});
@@ -41,9 +42,9 @@ class _EpreuvesPageState extends ConsumerState<EpreuvesPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Récupérer les compteurs d'épreuves par type
     final anciensSujetsCountAsync = ref.watch(epreuvesCountByTypeProvider(EpreuveType.ancienSujet));
     final sujetsCollegesCountAsync = ref.watch(epreuvesCountByTypeProvider(EpreuveType.sujetCollege));
+    final allEpreuvesAsync = ref.watch(studentEpreuvesProvider);
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -74,121 +75,201 @@ class _EpreuvesPageState extends ConsumerState<EpreuvesPage> {
       ),
       body: Stack(
         children: [
-          Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 80), // Espace pour navbar
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Bannière
+                Container(
+                  margin: const EdgeInsets.all(16),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.orange, Colors.orange.shade700],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
                     children: [
-                      // Bannière de bienvenue
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Colors.orange, Colors.orange.shade700],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Préparez vos examens !',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Entraînez-vous avec les épreuves officielles',
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.9),
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
+                            const Text(
+                              'Préparez vos examens !',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const SizedBox(width: 16),
-                            Image.asset(
-                              'assets/images/Thesis-pana.png',
-                              height: 100,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(
-                                  Icons.assignment,
-                                  size: 100,
-                                  color: Colors.white,
-                                );
-                              },
+                            const SizedBox(height: 8),
+                            Text(
+                              'Entraînez-vous avec les épreuves officielles',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 14,
+                              ),
                             ),
                           ],
                         ),
                       ),
-
-                      const SizedBox(height: 24),
-
-                      // Grille de catégories
-                      GridView.count(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: 1.05,
-                        children: [
-                          _buildCategoryCard(
-                            nom: 'Anciens Sujets',
-                            icon: Icons.history_edu_outlined,
-                            route: '/anciens_sujets',
-                            color: Colors.blue,
-                            nombreSujetsAsync: anciensSujetsCountAsync,
-                            enabled: true,
-                          ),
-                          _buildCategoryCard(
-                            nom: 'Etablissements',
-                            icon: Icons.school_outlined,
-                            route: '/colleges_connus',
-                            color: Colors.orange,
-                            nombreSujetsAsync: sujetsCollegesCountAsync,
-                            enabled: true,
-                          ),
-                          _buildCategoryCard(
-                            nom: 'Examens Blancs',
-                            icon: Icons.lightbulb_outline,
-                            route: '/examens_blancs',
-                            color: Colors.green,
-                            nombreSujetsAsync: const AsyncValue.data(0),
-                            enabled: false,
-                          ),
-                          _buildCategoryCard(
-                            nom: 'Exclusif',
-                            icon: Icons.star_border_outlined,
-                            route: '/epreuves_exclusives',
-                            color: Colors.purple,
-                            nombreSujetsAsync: const AsyncValue.data(0),
-                            enabled: false,
-                          ),
-                        ],
+                      const SizedBox(width: 16),
+                      Image.asset(
+                        'assets/images/Thesis-pana.png',
+                        height: 100,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(
+                            Icons.assignment,
+                            size: 100,
+                            color: Colors.white,
+                          );
+                        },
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 8),
+
+                // Titre "Types d'épreuves"
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Text(
+                    "Types d'épreuves",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Grille de catégories
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1.05,
+                    children: [
+                      _buildCategoryCard(
+                        nom: 'Anciens Sujets',
+                        icon: Icons.history_edu_outlined,
+                        route: '/anciens_sujets',
+                        color: Colors.blue,
+                        nombreSujetsAsync: anciensSujetsCountAsync,
+                        enabled: true,
+                      ),
+                      _buildCategoryCard(
+                        nom: 'Etablissements',
+                        icon: Icons.school_outlined,
+                        route: '/colleges_connus',
+                        color: Colors.orange,
+                        nombreSujetsAsync: sujetsCollegesCountAsync,
+                        enabled: true,
+                      ),
+                      _buildCategoryCard(
+                        nom: 'Examens Blancs',
+                        icon: Icons.lightbulb_outline,
+                        route: '/examens_blancs',
+                        color: Colors.green,
+                        nombreSujetsAsync: const AsyncValue.data(0),
+                        enabled: false,
+                      ),
+                      _buildCategoryCard(
+                        nom: 'Exclusif',
+                        icon: Icons.star_border_outlined,
+                        route: '/epreuves_exclusives',
+                        color: Colors.purple,
+                        nombreSujetsAsync: const AsyncValue.data(0),
+                        enabled: false,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Titre "Consultés récemment"
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Text(
+                    'Consultés récemment',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Liste des 3 dernières épreuves consultées
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: allEpreuvesAsync.when(
+                    data: (epreuves) {
+                      final recentEpreuves = epreuves.take(3).toList();
+
+                      if (recentEpreuves.isEmpty) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20.0),
+                            child: Text(
+                              "Aucune épreuve récemment consultée.",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        children: recentEpreuves.map((epreuve) {
+                          return EpreuveCard(epreuve: epreuve);
+                        }).toList(),
+                      );
+                    },
+                    loading: () => const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    ),
+                    error: (err, _) => const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Text(
+                          "Aucune épreuve disponible",
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          CustomNavBar(
-            currentIndex: _currentIndex,
-            onTap: _onNavTap,
+
+          // Navbar fixe en bas
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: CustomNavBar(
+              currentIndex: _currentIndex,
+              onTap: _onNavTap,
+            ),
           ),
         ],
       ),

@@ -104,77 +104,86 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
   Widget build(BuildContext context) {
     const double fabBottomMargin = kBottomNavigationBarHeight + 24.0;
 
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Iconsax.notification, color: Colors.grey[700]),
-          onPressed: () {
-            context.go('/notifications');
-          },
-          tooltip: 'Notifications',
-        ),
-        title: const Text(
-          'Statistiques',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 24),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Iconsax.setting_2, color: Colors.grey[700]),
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          // Empêcher la sortie de l'app
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          automaticallyImplyLeading: false, // Retirer la flèche de retour
+          leading: IconButton(
+            icon: Icon(Iconsax.notification, color: Colors.grey[700]),
             onPressed: () {
-              context.go('/settings');
+              context.push('/notifications');
             },
-            tooltip: 'Paramètres',
+            tooltip: 'Notifications',
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Aperçu global',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildGlobalStats(),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Progression par matière',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildMatiereSelector(),
-                  const SizedBox(height: 16),
-                  _buildSelectedMatiereStats(),
-                ],
+          title: const Text(
+            'Statistiques',
+            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 24),
+          ),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: Icon(Iconsax.setting_2, color: Colors.grey[700]),
+              onPressed: () {
+                context.push('/settings');
+              },
+              tooltip: 'Paramètres',
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Aperçu global',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildGlobalStats(),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Progression par matière',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildMatiereSelector(),
+                    const SizedBox(height: 16),
+                    _buildSelectedMatiereStats(),
+                  ],
+                ),
               ),
             ),
-          ),
-          CustomNavBar(currentIndex: _currentIndex, onTap: _onNavTap),
-        ],
-      ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: fabBottomMargin),
-        child: FloatingActionButton(
-          onPressed: () {
-            context.go('/chatbot');
-          },
-          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.9),
-          child: const Icon(Iconsax.message_question, color: Colors.white), // Changé pour Iconsax
-          tooltip: 'EasyBot',
+            CustomNavBar(currentIndex: _currentIndex, onTap: _onNavTap),
+          ],
         ),
+        floatingActionButton: Padding(
+          padding: const EdgeInsets.only(bottom: fabBottomMargin),
+          child: FloatingActionButton(
+            onPressed: () {
+              context.push('/chatbot');
+            },
+            backgroundColor: Theme.of(context).primaryColor.withOpacity(0.9),
+            child: const Icon(Iconsax.message_question, color: Colors.white),
+            tooltip: 'EasyBot',
+          ),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -213,7 +222,7 @@ class _StatistiquesPageState extends State<StatistiquesPage> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
-              Iconsax.chart_1, // Changé pour Iconsax pour cohérence
+              Iconsax.chart_1,
               size: 40,
               color: Colors.white,
             ),

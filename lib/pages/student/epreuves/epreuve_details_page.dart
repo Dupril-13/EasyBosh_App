@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easybosh_v2/models/epreuve_model.dart';
 import 'package:easybosh_v2/providers/epreuve_progression_provider.dart';
-import 'package:easybosh_v2/providers/auth_provider.dart';
 import 'package:easybosh_v2/core/providers/auth_provider.dart';
 
 class EpreuveDetailsPage extends ConsumerWidget {
@@ -16,16 +15,16 @@ class EpreuveDetailsPage extends ConsumerWidget {
     final currentUser = ref.watch(currentUserProvider);
     final progressionState = ref.watch(epreuveProgressionProvider);
 
-    // Vérifier si l'épreuve est déjà commencée ou terminée
     final isStarted = epreuve.id != null && progressionState.containsKey(epreuve.id!);
     final isCompleted = isStarted && progressionState[epreuve.id!]!.termine;
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         backgroundColor: Colors.white,
-        elevation: 1,
+        elevation: 0.5,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700]),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
           onPressed: () => context.pop(),
         ),
         title: const Text(
@@ -35,232 +34,211 @@ class EpreuveDetailsPage extends ConsumerWidget {
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Titre de l'épreuve
-            Text(
-              epreuve.nom,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+            Container(
+              width: double.infinity,
+              color: Colors.white,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    epreuve.nom,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+
+                  if (isCompleted || isStarted) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isCompleted ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isCompleted ? Colors.green : Colors.orange,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isCompleted ? Icons.check_circle : Icons.play_circle,
+                            size: 16,
+                            color: isCompleted ? Colors.green : Colors.orange,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isCompleted ? 'Épreuve terminée' : 'En cours',
+                            style: TextStyle(
+                              color: isCompleted ? Colors.green : Colors.orange,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
 
-            // Badge de statut
-            if (isCompleted)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.green),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.check_circle, size: 16, color: Colors.green),
-                    SizedBox(width: 6),
-                    Text(
-                      'Épreuve terminée',
-                      style: TextStyle(color: Colors.green, fontWeight: FontWeight.w600),
-                    ),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  _buildDetailRow(Icons.subject_outlined, 'Matière', epreuve.matiereDisplay),
+                  _buildDivider(),
+                  _buildDetailRow(Icons.grade_outlined, 'Niveau', epreuve.niveauScolaireDisplay),
+                  _buildDivider(),
+                  _buildDetailRow(Icons.assignment_ind_outlined, 'Série(s)', epreuve.seriesCodes.join(', ')),
+                  _buildDivider(),
+                  _buildDetailRow(Icons.timer_outlined, 'Durée', '${epreuve.dureeMinutes} minutes'),
+
+                  if (epreuve.typeEpreuve == EpreuveType.ancienSujet && epreuve.anneeExamen != null) ...[
+                    _buildDivider(),
+                    _buildDetailRow(Icons.calendar_today_outlined, 'Année', epreuve.anneeExamen.toString()),
                   ],
-                ),
-              )
-            else if (isStarted)
+
+                  if (epreuve.typeEpreuve == EpreuveType.ancienSujet && epreuve.sessionExamen != null) ...[
+                    _buildDivider(),
+                    _buildDetailRow(Icons.school_outlined, 'Examen', epreuve.sessionExamen!),
+                  ],
+
+                  if (epreuve.typeEpreuve == EpreuveType.sujetCollege && epreuve.nomEtablissement != null) ...[
+                    _buildDivider(),
+                    _buildDetailRow(Icons.business_outlined, 'Établissement', epreuve.nomEtablissement!),
+                  ],
+
+                  if (epreuve.typeEpreuve == EpreuveType.sujetCollege && epreuve.villeEtablissement != null) ...[
+                    _buildDivider(),
+                    _buildDetailRow(Icons.location_on_outlined, 'Ville', epreuve.villeEtablissement!),
+                  ],
+                ],
+              ),
+            ),
+
+            if (epreuve.description != null && epreuve.description!.isNotEmpty) ...[
+              const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.orange),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.play_circle, size: 16, color: Colors.orange),
-                    SizedBox(width: 6),
+                    const Text(
+                      'Description',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     Text(
-                      'En cours',
-                      style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w600),
+                      epreuve.description!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[700],
+                        height: 1.5,
+                      ),
                     ),
                   ],
                 ),
               ),
+            ],
 
             const SizedBox(height: 24),
 
-            // Card avec informations principales
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _buildDetailRow(
-                      Icons.subject_outlined,
-                      'Matière',
-                      epreuve.matiereDisplay,
-                    ),
-                    const Divider(height: 24),
-                    _buildDetailRow(
-                      Icons.grade_outlined,
-                      'Niveau',
-                      epreuve.niveauScolaireDisplay,
-                    ),
-                    const Divider(height: 24),
-                    _buildDetailRow(
-                      Icons.assignment_ind_outlined,
-                      'Série(s)',
-                      epreuve.seriesCodes.join(', '),
-                    ),
-                    const Divider(height: 24),
-                    _buildDetailRow(
-                      Icons.timer_outlined,
-                      'Durée',
-                      '${epreuve.dureeMinutes} minutes',
-                    ),
-                    if (epreuve.typeEpreuve == EpreuveType.ancienSujet && epreuve.anneeExamen != null) ...[
-                      const Divider(height: 24),
-                      _buildDetailRow(
-                        Icons.calendar_today_outlined,
-                        'Année',
-                        epreuve.anneeExamen.toString(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  if (isCompleted) ...[
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.visibility_outlined, size: 22),
+                      label: const Text('Voir la Correction', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      onPressed: epreuve.corrigePdfUrl != null
+                          ? () => context.push('/epreuve_correction', extra: epreuve)
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
                       ),
-                    ],
-                    if (epreuve.typeEpreuve == EpreuveType.ancienSujet && epreuve.sessionExamen != null) ...[
-                      const Divider(height: 24),
-                      _buildDetailRow(
-                        Icons.school_outlined,
-                        'Session',
-                        epreuve.sessionExamen!,
+                    ),
+                    if (epreuve.corrigePdfUrl == null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Corrigé non disponible pour cette épreuve',
+                          style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                    ],
-                    if (epreuve.typeEpreuve == EpreuveType.sujetCollege && epreuve.nomEtablissement != null) ...[
-                      const Divider(height: 24),
-                      _buildDetailRow(
-                        Icons.business_outlined,
-                        'Établissement',
-                        epreuve.nomEtablissement!,
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.refresh, size: 20),
+                      label: const Text('Recommencer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      onPressed: () => _showRestartDialog(context, ref, currentUser),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.orange,
+                        side: const BorderSide(color: Colors.orange, width: 1.5),
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                    ],
-                    if (epreuve.typeEpreuve == EpreuveType.sujetCollege && epreuve.villeEtablissement != null) ...[
-                      const Divider(height: 24),
-                      _buildDetailRow(
-                        Icons.location_on_outlined,
-                        'Ville',
-                        epreuve.villeEtablissement!,
+                    ),
+                  ] else if (isStarted) ...[
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.play_arrow, size: 22),
+                      label: const Text('Continuer l\'Épreuve', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      onPressed: () => context.push('/epreuve_composition', extra: epreuve),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
                       ),
-                    ],
+                    ),
+                  ] else ...[
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.play_arrow, size: 22),
+                      label: const Text('Commencer l\'Épreuve', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      onPressed: () => _startEpreuve(context, ref, currentUser),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                    ),
                   ],
-                ),
+                ],
               ),
             ),
 
-            // Description si disponible
-            if (epreuve.description != null && epreuve.description!.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              const Text(
-                'Description',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    epreuve.description!,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.grey[700],
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-
             const SizedBox(height: 32),
-
-            // Boutons d'action
-            if (isCompleted) ...[
-              // Si l'épreuve est terminée, afficher le bouton de correction
-              ElevatedButton.icon(
-                icon: const Icon(Icons.visibility_outlined, size: 22),
-                label: const Text('Voir la Correction', style: TextStyle(fontSize: 16)),
-                onPressed: epreuve.corrigePdfUrl != null
-                    ? () => context.push('/epreuve_correction', extra: epreuve)
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 54),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 2,
-                ),
-              ),
-              if (epreuve.corrigePdfUrl == null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Corrigé non disponible pour cette épreuve',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.refresh, size: 20),
-                label: const Text('Recommencer', style: TextStyle(fontSize: 16)),
-                onPressed: () => _showRestartDialog(context, ref, currentUser),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.orange,
-                  side: const BorderSide(color: Colors.orange, width: 1.5),
-                  minimumSize: const Size(double.infinity, 54),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ] else if (isStarted) ...[
-              // Si l'épreuve est commencée, proposer de continuer
-              ElevatedButton.icon(
-                icon: const Icon(Icons.play_arrow, size: 22),
-                label: const Text('Continuer l\'Épreuve', style: TextStyle(fontSize: 16)),
-                onPressed: () => context.push('/epreuve_composition', extra: epreuve),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 54),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 2,
-                ),
-              ),
-            ] else ...[
-              // Nouvelle épreuve
-              ElevatedButton.icon(
-                icon: const Icon(Icons.play_arrow, size: 22),
-                label: const Text('Commencer l\'Épreuve', style: TextStyle(fontSize: 16)),
-                onPressed: () => _startEpreuve(context, ref, currentUser),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 54),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 2,
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -268,46 +246,53 @@ class EpreuveDetailsPage extends ConsumerWidget {
   }
 
   Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.blue, size: 22),
-        const SizedBox(width: 12),
-        Text(
-          '$label:',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.normal,
-              color: Colors.black87,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.blue, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+              ),
             ),
-            textAlign: TextAlign.end,
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.end,
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  Widget _buildDivider() {
+    return Divider(height: 1, color: Colors.grey[200]);
   }
 
   Future<void> _startEpreuve(BuildContext context, WidgetRef ref, dynamic currentUser) async {
     if (currentUser == null || epreuve.id == null) return;
 
     try {
-      // Enregistrer le début de l'épreuve
       await ref.read(epreuveProgressionProvider.notifier).startEpreuve(
         epreuve.id!,
         currentUser.uid,
       );
 
       if (context.mounted) {
-        // Navigation vers la page de composition
         context.push('/epreuve_composition', extra: epreuve);
       }
     } catch (e) {
@@ -325,20 +310,64 @@ class EpreuveDetailsPage extends ConsumerWidget {
   void _showRestartDialog(BuildContext context, WidgetRef ref, dynamic currentUser) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Recommencer l\'épreuve'),
         content: const Text(
           'Voulez-vous vraiment recommencer cette épreuve ? Votre progression actuelle sera perdue.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _startEpreuve(context, ref, currentUser);
+            onPressed: () async {
+              Navigator.pop(dialogContext); // Fermer la dialog
+
+              if (epreuve.id != null && currentUser != null) {
+                try {
+                  // Afficher un loader
+                  if (context.mounted) {
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (ctx) => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+
+                  // Réinitialiser en recommençant
+                  await ref.read(epreuveProgressionProvider.notifier).startEpreuve(
+                    epreuve.id!,
+                    currentUser.uid,
+                  );
+
+                  // Fermer le loader
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                  }
+
+                  // Rediriger vers la composition
+                  if (context.mounted) {
+                    context.push('/epreuve_composition', extra: epreuve);
+                  }
+                } catch (e) {
+                  // Fermer le loader en cas d'erreur
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                  }
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Erreur: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             child: const Text('Recommencer'),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:iconsax_flutter/iconsax_flutter.dart'; // Ajout de l'import pour Iconsax
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import '../../widgets/custom_navbar.dart';
 
 class QuizPage extends StatefulWidget {
@@ -21,7 +21,7 @@ class _QuizPageState extends State<QuizPage> {
       'description': 'Quiz par chapitre, thème ou difficulté.',
       'temps': '10-30 min',
       'niveau': 'Tous niveaux',
-      'route': '/quiz_par_matiere_selection', 
+      'route': '/quiz_par_matiere_selection',
     },
     {
       'nom': 'Quiz Challenge',
@@ -30,25 +30,25 @@ class _QuizPageState extends State<QuizPage> {
       'description': 'Défis ardus et quiz originaux.',
       'temps': '20-45 min',
       'niveau': 'Avancé',
-      'route': '/quiz_challenge_list', 
+      'route': '/quiz_challenge_list',
     },
     {
       'nom': 'Révision Express',
-      'icon': Icons.flash_on, 
+      'icon': Icons.flash_on,
       'color': Colors.orange,
       'description': 'Révision rapide sur un sujet/chapitre.',
       'temps': '5-15 min',
       'niveau': 'Adapté',
-      'route': '/quiz_express_placeholder', 
+      'route': '/quiz_express_placeholder',
     },
     {
-      'nom': 'Bilan par Niveau', 
-      'icon': Icons.school, 
+      'nom': 'Bilan par Niveau',
+      'icon': Icons.school,
       'color': Colors.green,
       'description': 'Maîtrise globale par niveau scolaire.',
       'temps': '30-60 min',
       'niveau': 'Spécifique',
-      'route': '/quiz_bilan_niveau_placeholder', 
+      'route': '/quiz_bilan_niveau_placeholder',
     },
   ];
 
@@ -103,245 +103,254 @@ class _QuizPageState extends State<QuizPage> {
   Widget build(BuildContext context) {
     const double fabBottomMargin = kBottomNavigationBarHeight + 24.0;
 
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Iconsax.notification, color: Colors.grey[700]), // Changé pour Iconsax
-          onPressed: () {
-            context.go('/notifications'); 
-          },
-          tooltip: 'Notifications',
-        ),
-        title: const Text(
-          'Quiz',
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Iconsax.setting_2, color: Colors.grey[700]), // Changé pour Iconsax
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          // Empêcher la sortie de l'app
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          automaticallyImplyLeading: false, // Retirer la flèche de retour
+          leading: IconButton(
+            icon: Icon(Iconsax.notification, color: Colors.grey[700]),
             onPressed: () {
-              context.go('/settings');
+              context.push('/notifications');
             },
-            tooltip: 'Paramètres',
+            tooltip: 'Notifications',
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.purple, Colors.purple.shade700],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Testez vos connaissances !',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                'Quiz interactifs pour réviser efficacement',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Icon(
-                            Iconsax.message_question, // Changé pour Iconsax pour cohérence avec FAB
-                            size: 40,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Types de Quiz',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 1.1, 
-                    ),
-                    itemCount: _quizCategories.length,
-                    itemBuilder: (context, index) {
-                      final categorie = _quizCategories[index];
-                      return _buildQuizCategoryCard(categorie);
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Quiz récents',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildQuizRecents(),
-                ],
-              ),
+          title: const Text(
+            'Quiz',
+            style: TextStyle(
+              color: Colors.black87,
+              fontWeight: FontWeight.bold,
+              fontSize: 24,
             ),
           ),
-          CustomNavBar(
-            currentIndex: _currentIndex,
-            onTap: _onNavTap,
-          ),
-        ],
-      ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: fabBottomMargin),
-        child: FloatingActionButton(
-          onPressed: () {
-            context.go('/chatbot');
-          },
-          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.9),
-          child: const Icon(Iconsax.message_question, color: Colors.white), // Changé pour Iconsax
-          tooltip: 'EasyBot',
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: Icon(Iconsax.setting_2, color: Colors.grey[700]),
+              onPressed: () {
+                context.push('/settings');
+              },
+              tooltip: 'Paramètres',
+            ),
+          ],
         ),
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.purple, Colors.purple.shade700],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Testez vos connaissances !',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Quiz interactifs pour réviser efficacement',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Icon(
+                              Iconsax.message_question,
+                              size: 40,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Types de Quiz',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 1.1,
+                      ),
+                      itemCount: _quizCategories.length,
+                      itemBuilder: (context, index) {
+                        final categorie = _quizCategories[index];
+                        return _buildQuizCategoryCard(categorie);
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Quiz récents',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildQuizRecents(),
+                  ],
+                ),
+              ),
+            ),
+            CustomNavBar(
+              currentIndex: _currentIndex,
+              onTap: _onNavTap,
+            ),
+          ],
+        ),
+        floatingActionButton: Padding(
+          padding: const EdgeInsets.only(bottom: fabBottomMargin),
+          child: FloatingActionButton(
+            onPressed: () {
+              context.push('/chatbot');
+            },
+            backgroundColor: Theme.of(context).primaryColor.withOpacity(0.9),
+            child: const Icon(Iconsax.message_question, color: Colors.white),
+            tooltip: 'EasyBot',
+          ),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
   Widget _buildQuizCategoryCard(Map<String, dynamic> categorie) {
     final Color cardColor = categorie['color'] as Color;
-    final IconData iconData = categorie['icon'] as IconData; // Les icônes des catégories peuvent rester Material
+    final IconData iconData = categorie['icon'] as IconData;
     final String nom = categorie['nom'] as String;
     final String description = categorie['description'] as String;
     final String route = categorie['route'] as String? ?? '';
 
     return Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              spreadRadius: 2,
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () {
-              if (route.isNotEmpty) {
-                context.go(route);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Route non définie pour $nom'),
-                    backgroundColor: Colors.redAccent,
+          onTap: () {
+            if (route.isNotEmpty) {
+              context.go(route);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Route non définie pour $nom'),
+                  backgroundColor: Colors.redAccent,
+                ),
+              );
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: cardColor.withOpacity(0.1),
+                    shape: BoxShape.circle,
                   ),
-                );
-              }
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(12), 
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10), 
-                    decoration: BoxDecoration(
-                      color: cardColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      iconData,
-                      color: cardColor,
-                      size: 28, 
-                    ),
+                  child: Icon(
+                    iconData,
+                    color: cardColor,
+                    size: 28,
                   ),
-                  const SizedBox(height: 8), 
-                  Text(
-                    nom,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  nom,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Expanded(
+                  child: Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[600],
                     ),
                     textAlign: TextAlign.center,
-                    maxLines: 1, 
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
-                  Expanded(
-                    child: Text(
-                      description,
-                      style: TextStyle(
-                        fontSize: 11, 
-                        color: Colors.grey[600],
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 3, 
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(height: 2), 
-                ],
-              ),
+                ),
+                const SizedBox(height: 2),
+              ],
             ),
           ),
         ),
-      );
+      ),
+    );
   }
 
   Widget _buildQuizRecents() {
@@ -369,7 +378,7 @@ class _QuizPageState extends State<QuizPage> {
                 width: 8,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.purple, 
+                  color: Colors.purple,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),

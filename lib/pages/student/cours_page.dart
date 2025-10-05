@@ -5,9 +5,9 @@ import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:easybosh_v2/providers/matiere_provider.dart';
 import 'package:easybosh_v2/core/providers/auth_provider.dart';
 import 'package:easybosh_v2/models/user_model.dart';
-import 'package:easybosh_v2/models/recent_lecon_info_model.dart'; // Added import
-import 'package:easybosh_v2/providers/recent_lecons_provider.dart'; // Added import
-import 'package:easybosh_v2/pages/student/cours/chapitre_detail_page.dart'; // Added import
+import 'package:easybosh_v2/models/recent_lecon_info_model.dart';
+import 'package:easybosh_v2/providers/recent_lecons_provider.dart';
+import 'package:easybosh_v2/pages/student/cours/chapitre_detail_page.dart';
 import '../../widgets/custom_navbar.dart';
 import '../../models/matiere_model.dart';
 
@@ -35,14 +35,14 @@ IconData _stringToIconData(String? iconName) {
   }
   switch (iconName) {
     case 'functions': return Iconsax.calculator;
-    case 'science': return Iconsax.activity; 
+    case 'science': return Iconsax.activity;
     case 'science_outlined': return Iconsax.shapes;
     case 'menu_book': return Iconsax.book_1;
     case 'language': return Iconsax.language_square;
     case 'public': return Iconsax.global;
     case 'map': return Iconsax.map_1;
     case 'psychology': return Iconsax.profile_2user;
-    case 'eco': return Iconsax.cpu_charge; 
+    case 'eco': return Iconsax.cpu_charge;
     case 'computer': return Iconsax.monitor;
     case 'gavel': return Iconsax.judge;
     case 'sports_soccer': return Iconsax.cup;
@@ -53,7 +53,7 @@ IconData _stringToIconData(String? iconName) {
     case 'theater_comedy': return Iconsax.happyemoji;
     case 'home_work': return Iconsax.home_hashtag;
     default:
-      return Iconsax.book; 
+      return Iconsax.book;
   }
 }
 
@@ -67,7 +67,7 @@ class CoursPage extends ConsumerStatefulWidget {
 class _CoursPageState extends ConsumerState<CoursPage> {
   int _currentIndex = 0;
   int _currentMatierePage = 0;
-  final PageController _pageController = PageController(viewportFraction: 1.0); 
+  final PageController _pageController = PageController(viewportFraction: 1.0);
   String? _previousUserId;
 
   @override
@@ -87,25 +87,24 @@ class _CoursPageState extends ConsumerState<CoursPage> {
     final recentLeconsNotifier = ref.read(recentLeconsProvider.notifier);
 
     if (currentUser != null &&
-        currentUser.role == 'student' && 
+        currentUser.role == 'student' &&
         currentUser.niveauCode != null &&
-        (currentUser.niveauCode == '3eme' || (currentUser.serieCode != null && currentUser.serieCode!.isNotEmpty)) && 
-        currentUser.niveauCode!.isNotEmpty
-      ) {
-        matiereNotifier.fetchMatieres(
-          niveauCode: currentUser.niveauCode!,
-          serieCode: currentUser.serieCode,
-        );
-        recentLeconsNotifier.fetchRecentLecons(); // Fetch recent lecons
+        (currentUser.niveauCode == '3eme' || (currentUser.serieCode != null && currentUser.serieCode!.isNotEmpty)) &&
+        currentUser.niveauCode!.isNotEmpty) {
+      matiereNotifier.fetchMatieres(
+        niveauCode: currentUser.niveauCode!,
+        serieCode: currentUser.serieCode,
+      );
+      recentLeconsNotifier.fetchRecentLecons();
     } else {
       matiereNotifier.clearDataAndError();
-      recentLeconsNotifier.fetchRecentLecons(); // Still call to clear or handle null user ID
+      recentLeconsNotifier.fetchRecentLecons();
       if (currentUser == null) {
         // No specific message if disconnected
       } else if (currentUser.role != 'student') {
         matiereNotifier.setExternalError("Cette section est réservée aux étudiants.");
-      } else { 
-        matiereNotifier.setExternalError("Complétez votre profil (niveau/série)."); 
+      } else {
+        matiereNotifier.setExternalError("Complétez votre profil (niveau/série).");
       }
     }
   }
@@ -138,137 +137,146 @@ class _CoursPageState extends ConsumerState<CoursPage> {
   Widget build(BuildContext context) {
     ref.listen<UserModel?>(currentUserProvider, (previous, next) {
       if (mounted && (next?.uid != _previousUserId || (_previousUserId == null && next != null))) {
-         _processCurrentUser(next);
-         _previousUserId = next?.uid;
+        _processCurrentUser(next);
+        _previousUserId = next?.uid;
       }
     });
 
     final matiereState = ref.watch(matiereProvider);
     final List<MatiereModel> matieres = matiereState.matieres;
     final currentUser = ref.watch(currentUserProvider);
-    final recentLeconsState = ref.watch(recentLeconsProvider); // Watch recent lecons state
+    final recentLeconsState = ref.watch(recentLeconsProvider);
 
     String pageTitle = 'Cours';
     if (currentUser != null && currentUser.role == 'student') {
       pageTitle = 'Mes Matières';
     }
 
-    const double bottomPaddingForScroll = 30.0; // MODIFIÉ
+    const double bottomPaddingForScroll = 30.0;
 
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Iconsax.notification, color: Colors.grey[700]),
-          onPressed: () => context.go('/notifications'),
-          tooltip: 'Notifications',
-        ),
-        title: Text(pageTitle, style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 24)),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Iconsax.setting_2, color: Colors.grey[700]),
-            onPressed: () => context.go('/settings'),
-            tooltip: 'Paramètres',
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          // Empêcher la sortie de l'app
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          leading: IconButton(
+            icon: Icon(Iconsax.notification, color: Colors.grey[700]),
+            onPressed: () => context.push('/notifications'),
+            tooltip: 'Notifications',
           ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          _processCurrentUser(ref.read(currentUserProvider));
-        },
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                clipBehavior: Clip.none, 
-                padding: const EdgeInsets.fromLTRB(0, 16, 0, bottomPaddingForScroll), 
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Container( 
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Theme.of(context).primaryColor, Theme.of(context).primaryColor.withAlpha(200)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    currentUser != null && currentUser.prenom != null && currentUser.prenom!.isNotEmpty
-                                    ? 'Bienvenue ${currentUser.prenom} !' 
-                                    : 'Bienvenue dans vos cours !',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    'Explorez les matières et progressez à votre rythme',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            const Icon(Iconsax.teacher, size: 70, color: Colors.white54),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Text("Matières disponibles", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildMatiereContent(matiereState, matieres, currentUser),
-                    const SizedBox(height: 24),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Text('Consultés récemment', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
-                    ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: _buildCoursRecents(recentLeconsState.recentLecons, recentLeconsState.isLoading, recentLeconsState.errorMessage),
-                    )
-                  ],
-                ),
-              ),
+          title: Text(pageTitle, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 24)),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: Icon(Iconsax.setting_2, color: Colors.grey[700]),
+              onPressed: () => context.push('/settings'),
+              tooltip: 'Paramètres',
             ),
-            CustomNavBar(currentIndex: _currentIndex, onTap: _onNavTap),
           ],
         ),
-      ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: kBottomNavigationBarHeight + 16.0), 
-        child: FloatingActionButton(
-          onPressed: () => context.go('/chatbot'),
-          backgroundColor: Theme.of(context).primaryColor,
-          child: const Icon(Iconsax.message_question, color: Colors.white),
-          tooltip: 'EasyBot',
+        body: RefreshIndicator(
+          onRefresh: () async {
+            _processCurrentUser(ref.read(currentUserProvider));
+          },
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  clipBehavior: Clip.none,
+                  padding: const EdgeInsets.fromLTRB(0, 16, 0, bottomPaddingForScroll),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Theme.of(context).primaryColor, Theme.of(context).primaryColor.withAlpha(200)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      currentUser != null && currentUser.prenom != null && currentUser.prenom!.isNotEmpty
+                                          ? 'Bienvenue ${currentUser.prenom} !'
+                                          : 'Bienvenue dans vos cours !',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Explorez les matières et progressez à votre rythme',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              const Icon(Iconsax.teacher, size: 70, color: Colors.white54),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Text("Matières disponibles", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildMatiereContent(matiereState, matieres, currentUser),
+                      const SizedBox(height: 24),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Text('Consultés récemment', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: _buildCoursRecents(recentLeconsState.recentLecons, recentLeconsState.isLoading, recentLeconsState.errorMessage),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+              CustomNavBar(currentIndex: _currentIndex, onTap: _onNavTap),
+            ],
+          ),
         ),
+        floatingActionButton: Padding(
+          padding: const EdgeInsets.only(bottom: kBottomNavigationBarHeight + 16.0),
+          child: FloatingActionButton(
+            onPressed: () => context.push('/chatbot'),
+            backgroundColor: Theme.of(context).primaryColor,
+            child: const Icon(Iconsax.message_question, color: Colors.white),
+            tooltip: 'EasyBot',
+          ),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -281,17 +289,17 @@ class _CoursPageState extends ConsumerState<CoursPage> {
     if (currentUser.role != 'student') {
       return Center(child: Padding(padding: const EdgeInsets.all(32.0), child: Text(matiereState.errorMessage ?? "Accès étudiant requis.", style: const TextStyle(fontSize: 16, color: Colors.redAccent))));
     }
-    
-    if (isProfileError) { 
-       return Center(child: Padding(padding: const EdgeInsets.all(32.0), child: Text(matiereState.errorMessage ?? "Veuillez compléter votre profil (niveau/série).", style: const TextStyle(fontSize: 16, color: Colors.orangeAccent))));
+
+    if (isProfileError) {
+      return Center(child: Padding(padding: const EdgeInsets.all(32.0), child: Text(matiereState.errorMessage ?? "Veuillez compléter votre profil (niveau/série).", style: const TextStyle(fontSize: 16, color: Colors.orangeAccent))));
     }
 
     if (matiereState.isLoading && matieres.isEmpty) {
       return const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator()));
     }
-    
+
     if (matiereState.errorMessage != null && matieres.isEmpty && !isProfileError) {
-       return Center(child: Padding(padding: const EdgeInsets.all(32.0), child: Text('Erreur: ${matiereState.errorMessage}', style: const TextStyle(color: Colors.red, fontSize: 16))));
+      return Center(child: Padding(padding: const EdgeInsets.all(32.0), child: Text('Erreur: ${matiereState.errorMessage}', style: const TextStyle(color: Colors.red, fontSize: 16))));
     }
     if (matieres.isEmpty && !matiereState.isLoading) {
       return const Center(child: Padding(padding: EdgeInsets.all(32.0), child: Text('Aucune matière pour votre sélection.', style: TextStyle(fontSize: 16, color: Colors.grey))));
@@ -300,7 +308,7 @@ class _CoursPageState extends ConsumerState<CoursPage> {
     final int pageCount = (matieres.length / 4).ceil();
 
     if (matieres.isEmpty) {
-        return const SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
     double cardsAreaHeight = 0;
@@ -311,10 +319,10 @@ class _CoursPageState extends ConsumerState<CoursPage> {
     return Column(
       children: [
         SizedBox(
-          height: cardsAreaHeight, 
+          height: cardsAreaHeight,
           child: PageView.builder(
             controller: _pageController,
-            clipBehavior: Clip.none, 
+            clipBehavior: Clip.none,
             onPageChanged: (index) {
               setState(() {
                 _currentMatierePage = index;
@@ -323,24 +331,24 @@ class _CoursPageState extends ConsumerState<CoursPage> {
             itemCount: pageCount,
             itemBuilder: (context, pageIndex) {
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0), 
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: GridView.builder(
-                  shrinkWrap: true, 
-                  physics: const NeverScrollableScrollPhysics(), 
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    crossAxisSpacing: 16, 
-                    mainAxisSpacing: 16,  
-                    childAspectRatio: 1.05, 
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1.05,
                   ),
-                  itemCount: 4, 
+                  itemCount: 4,
                   itemBuilder: (context, gridIndex) {
                     final itemIndex = pageIndex * 4 + gridIndex;
                     if (itemIndex < matieres.length) {
                       final matiereModel = matieres[itemIndex];
                       return _buildMatiereCard(matiereModel);
                     }
-                    return const SizedBox.shrink(); 
+                    return const SizedBox.shrink();
                   },
                 ),
               );
@@ -349,14 +357,14 @@ class _CoursPageState extends ConsumerState<CoursPage> {
         ),
         if (pageCount > 1)
           Padding(
-            padding: const EdgeInsets.only(top: 0.0), 
+            padding: const EdgeInsets.only(top: 0.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(pageCount, (index) {
                 return Container(
                   width: 8.0,
                   height: 8.0,
-                  margin: const EdgeInsets.symmetric(vertical: 0.0, horizontal: 4.0), // Vertical margin for dots set to 0
+                  margin: const EdgeInsets.symmetric(vertical: 0.0, horizontal: 4.0),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: _currentMatierePage == index ? Theme.of(context).primaryColor : Colors.grey.withOpacity(0.5),
@@ -372,9 +380,9 @@ class _CoursPageState extends ConsumerState<CoursPage> {
   Widget _buildMatiereCard(MatiereModel matiere) {
     final Color cardColor = _hexToColor(matiere.couleur);
 
-    return ConstrainedBox( 
+    return ConstrainedBox(
       constraints: const BoxConstraints(
-        minHeight: 190, 
+        minHeight: 190,
         maxHeight: 190,
       ),
       child: Container(
@@ -395,8 +403,6 @@ class _CoursPageState extends ConsumerState<CoursPage> {
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () {
-              // Quand une matière est cliquée, on pourrait aussi la marquer comme "récente"
-              // ou du moins, s'assurer que la page de détail de la matière charge les leçons récentes pour cette matière.
               context.push('/student/cours/matiere/${matiere.id}', extra: matiere);
             },
             child: Padding(
@@ -408,12 +414,12 @@ class _CoursPageState extends ConsumerState<CoursPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: cardColor.withOpacity(0.15), 
+                      color: cardColor.withOpacity(0.15),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      _stringToIconData(matiere.icone), 
-                      color: cardColor, 
+                      _stringToIconData(matiere.icone),
+                      color: cardColor,
                       size: 30,
                     ),
                   ),
@@ -421,7 +427,7 @@ class _CoursPageState extends ConsumerState<CoursPage> {
                   Text(
                     matiere.nom,
                     style: const TextStyle(
-                      fontSize: 13, 
+                      fontSize: 13,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
                     ),
@@ -433,7 +439,7 @@ class _CoursPageState extends ConsumerState<CoursPage> {
                   Text(
                     'Explorer',
                     style: TextStyle(
-                      fontSize: 10, 
+                      fontSize: 10,
                       color: Colors.grey[600],
                     ),
                   ),
@@ -456,34 +462,29 @@ class _CoursPageState extends ConsumerState<CoursPage> {
     }
 
     if (leconsRecents.isEmpty) {
-        return const Center(
-          child: Padding(
-            padding: EdgeInsets.all(20.0), 
-            child: Text(
-              "Aucune leçon récemment consultée.",
-              style: TextStyle(color: Colors.grey, fontSize: 16)
-            )
-          )
-        );
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: Text(
+            "Aucune leçon récemment consultée.",
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+          ),
+        ),
+      );
     }
 
     return Column(
       children: leconsRecents.map((recentInfo) {
         final Color matiereColor = _hexToColor(recentInfo.matiere.couleur);
-        // final IconData leconIcon = _stringToIconData(recentInfo.lecon.type); // Or a generic icon
 
         return GestureDetector(
           onTap: () {
-            // Navigate to ChapitreDetailPage, passing the matiere and chapitre from recentInfo
             Navigator.push<Widget>(
               context,
               MaterialPageRoute(
                 builder: (context) => ChapitreDetailPage(
                   matiere: recentInfo.matiere,
                   chapitre: recentInfo.chapitre,
-                  // Optionally, you could pass leconId to ChapitreDetailPage
-                  // to auto-scroll or highlight the specific lesson.
-                  // initialLeconId: recentInfo.lecon.id, 
                 ),
               ),
             );
@@ -506,10 +507,10 @@ class _CoursPageState extends ConsumerState<CoursPage> {
             child: Row(
               children: [
                 Container(
-                  width: 6, 
-                  height: 50, 
+                  width: 6,
+                  height: 50,
                   decoration: BoxDecoration(
-                    color: matiereColor, 
+                    color: matiereColor,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -519,9 +520,9 @@ class _CoursPageState extends ConsumerState<CoursPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        recentInfo.lecon.nom, // Lecon name
+                        recentInfo.lecon.nom,
                         style: const TextStyle(
-                          fontSize: 15, 
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: Colors.black87,
                         ),
@@ -530,9 +531,9 @@ class _CoursPageState extends ConsumerState<CoursPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        recentInfo.matiere.nom, // Matiere name as subtitle
+                        recentInfo.matiere.nom,
                         style: TextStyle(
-                          fontSize: 13, 
+                          fontSize: 13,
                           color: Colors.grey[700],
                         ),
                       ),
