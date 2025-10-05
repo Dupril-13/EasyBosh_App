@@ -9,14 +9,14 @@ class EpreuvesExclusivesPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
-        elevation: 0,
+        elevation: 1,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700]),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/epreuves'); // Fallback vers la page principale des épreuves
+              context.go('/epreuves');
             }
           },
         ),
@@ -30,23 +30,29 @@ class EpreuvesExclusivesPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      body: const Center(
+      body: Center(
         child: Padding(
-          padding: EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.star_border_outlined, size: 80, color: Colors.purple),
-              SizedBox(height: 20),
-              Text(
+              Icon(Icons.star_border_outlined, size: 80, color: Colors.purple[300]),
+              const SizedBox(height: 24),
+              const Text(
                 'Épreuves Exclusives',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 12),
               Text(
-                'Les épreuves créées par la plateforme seront disponibles ici.',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+                'Contenu bientôt disponible',
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Des épreuves créées exclusivement par la plateforme seront disponibles ici.',
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                 textAlign: TextAlign.center,
               ),
             ],

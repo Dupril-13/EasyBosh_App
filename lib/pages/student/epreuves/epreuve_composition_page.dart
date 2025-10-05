@@ -1,146 +1,36 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'dart:async'; // Pour le Timer
+import 'package:easybosh_v2/models/epreuve_model.dart';
+import 'package:easybosh_v2/providers/epreuve_progression_provider.dart';
+import 'package:easybosh_v2/core/providers/auth_provider.dart';
+import 'package:easybosh_v2/pages/common/pdf_viewer_page.dart';
 
-class EpreuveCompositionPage extends StatefulWidget {
-  final Map<String, String> epreuveDetails;
+class EpreuveCompositionPage extends ConsumerStatefulWidget {
+  final Epreuve epreuve;
 
-  const EpreuveCompositionPage({super.key, required this.epreuveDetails});
+  const EpreuveCompositionPage({super.key, required this.epreuve});
 
   @override
-  State<EpreuveCompositionPage> createState() => _EpreuveCompositionPageState();
+  ConsumerState<EpreuveCompositionPage> createState() => _EpreuveCompositionPageState();
 }
 
-class _EpreuveCompositionPageState extends State<EpreuveCompositionPage> {
+class _EpreuveCompositionPageState extends ConsumerState<EpreuveCompositionPage> {
+  int _elapsedSeconds = 0;
   Timer? _timer;
-  int _dureeSecondes = 0;
-  bool _estEnPause = false;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _initialiserEtDemarrerTimer();
+    _startTimer();
   }
 
-  void _initialiserEtDemarrerTimer() {
-    String dureeStr = widget.epreuveDetails['duree'] ?? '0h';
-    _dureeSecondes = 0; // Réinitialiser avant parsing
-
-    // Tenter de parser XhYmin, Xh, Ymin
-    final RegExp heureMinRegex = RegExp(r'(?:(\d+)h)?(?:(\d+)min)?');
-    final match = heureMinRegex.firstMatch(dureeStr);
-
-    if (match != null) {
-      final heuresStr = match.group(1);
-      final minutesStr = match.group(2);
-
-      if (heuresStr != null) {
-        _dureeSecondes += (int.tryParse(heuresStr) ?? 0) * 3600;
-      }
-      if (minutesStr != null) {
-        _dureeSecondes += (int.tryParse(minutesStr) ?? 0) * 60;
-      }
-    } else {
-      // Fallback pour un format simple Xh ou Ymin si regex échoue (peu probable avec la regex actuelle)
-      if (dureeStr.contains('h') && !dureeStr.contains('min')) {
-        _dureeSecondes = (int.tryParse(dureeStr.replaceAll('h', '').trim()) ?? 0) * 3600;
-      } else if (dureeStr.contains('min') && !dureeStr.contains('h')) {
-        _dureeSecondes = (int.tryParse(dureeStr.replaceAll('min', '').trim()) ?? 0) * 60;
-      }
-    }
-
-    if (_dureeSecondes <= 0 && dureeStr != '0h') { // Si parsing a échoué et ce n'est pas 0h, log ou mettre une durée par défaut
-        print("Erreur de parsing de la durée: $dureeStr. Mise à 0 secondes.");
-        _dureeSecondes = 0;
-    }
-
-    if (_dureeSecondes > 0) {
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (!_estEnPause) {
-          if (_dureeSecondes > 0) {
-            setState(() {
-              _dureeSecondes--;
-            });
-          } else {
-            _timer?.cancel();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Temps écoulé !')),
-            );
-            // TODO: Gérer la fin du temps (soumission automatique, redirection?)
-          }
-        }
-      });
-    }
-  }
-
-  void _togglePauseResume() {
-    setState(() {
-      _estEnPause = !_estEnPause;
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() => _elapsedSeconds++);
     });
-  }
-
-  // Sera modifié pour la nouvelle logique de confirmation
-  void _arreterEpreuveEtVoirCorrection() {
-    _timer?.cancel();
-    // Naviguer vers la page de correction
-    // Assurez-vous que epreuveDetails est bien disponible et correct
-    context.go('/epreuve_correction', extra: widget.epreuveDetails);
-  }
-
-  void _arreterEpreuveEtQuitter() {
-    _timer?.cancel();
-    if (context.canPop()) {
-      context.pop(); // Revenir à la page des détails (ou la précédente dans la pile)
-    } else {
-      // Fallback si on ne peut pas pop (ex: page ouverte directement)
-      context.go('/epreuves'); 
-    }
-  }
-
-  void _afficherConfirmationArreter() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Arrêter l\'épreuve ?'),
-        content: const Text('Voulez-vous vraiment arrêter cette épreuve et voir la correction ?'),
-        actions: [
-          TextButton(
-            child: const Text('Non'),
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-          TextButton(
-            child: const Text('Oui, voir correction', style: TextStyle(color: Colors.green)),
-            onPressed: () {
-              Navigator.of(ctx).pop(); // Ferme le dialogue
-              _arreterEpreuveEtVoirCorrection();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _afficherConfirmationQuitter() {
-     showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Quitter l\'épreuve ?'),
-          content: const Text('Si vous quittez, votre progression pourrait ne pas être sauvegardée. Êtes-vous sûr ?'),
-          actions: [
-            TextButton(
-              child: const Text('Rester'),
-              onPressed: () => Navigator.of(ctx).pop(),
-            ),
-            TextButton(
-              child: const Text('Quitter', style: TextStyle(color: Colors.red)),
-              onPressed: () {
-                Navigator.of(ctx).pop(); // Ferme le dialogue
-                _arreterEpreuveEtQuitter(); // Arrête l'épreuve et pop la page
-              },
-            ),
-          ],
-        ),
-      );
   }
 
   @override
@@ -149,90 +39,299 @@ class _EpreuveCompositionPageState extends State<EpreuveCompositionPage> {
     super.dispose();
   }
 
-  String get _tempsRestantFormatted {
-    int heures = _dureeSecondes ~/ 3600;
-    int minutes = (_dureeSecondes % 3600) ~/ 60;
-    int secondes = _dureeSecondes % 60;
-    return "${heures.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${secondes.toString().padLeft(2, '0')}";
-  }
-
   @override
   Widget build(BuildContext context) {
-    final String titreEpreuve = widget.epreuveDetails['titre'] ?? 'Composition';
+    if (widget.epreuve.sujetPdfUrl == null || widget.epreuve.sujetPdfUrl!.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Épreuve'),
+        ),
+        body: const Center(
+          child: Text('Le sujet de cette épreuve n\'est pas disponible.'),
+        ),
+      );
+    }
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700]),
-          onPressed: _afficherConfirmationQuitter, // Utilise la modale de confirmation standard pour quitter
-        ),
-        title: Text(
-          titreEpreuve,
-          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18, overflow: TextOverflow.ellipsis),
-        ),
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Center(
-              child: Text(
-                _tempsRestantFormatted,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _dureeSecondes < 600 ? Colors.red : Theme.of(context).primaryColor),
-              ),
-            ),
+    return WillPopScope(
+      onWillPop: () async {
+        // Confirmer avant de quitter
+        final shouldPop = await _showExitConfirmDialog();
+        return shouldPop ?? false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 1,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700]),
+            onPressed: () async {
+              final shouldPop = await _showExitConfirmDialog();
+              if (shouldPop == true && context.mounted) {
+                context.pop();
+              }
+            },
           ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            const Expanded(
-              child: Center(
-                child: Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: EdgeInsets.all(32.0),
-                    child: Text(
-                      'Contenu de l\'épreuve (Questions, etc.) ici',
-                      style: TextStyle(fontSize: 18, color: Colors.grey),
-                      textAlign: TextAlign.center,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.epreuve.nom,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                'Composition en cours',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            // Timer affiché dans l'AppBar
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _getTimerColor(),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.timer, size: 16, color: Colors.white),
+                  const SizedBox(width: 6),
+                  Text(
+                    _formatDuration(_elapsedSeconds),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
-                ),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  icon: Icon(_estEnPause ? Icons.play_arrow : Icons.pause),
-                  label: Text(_estEnPause ? 'Reprendre' : 'Pause'),
-                  onPressed: _togglePauseResume,
+          ],
+        ),
+        body: Column(
+          children: [
+            // Barre de progression (optionnelle)
+            if (widget.epreuve.dureeMinutes > 0)
+              LinearProgressIndicator(
+                value: _elapsedSeconds / (widget.epreuve.dureeMinutes * 60),
+                backgroundColor: Colors.grey[200],
+                valueColor: AlwaysStoppedAnimation<Color>(_getTimerColor()),
+              ),
+
+            // Affichage du PDF du sujet
+            Expanded(
+              child: PdfViewerPage(
+                pdfUrl: widget.epreuve.sujetPdfUrl!,
+                lessonTitle: 'Sujet - ${widget.epreuve.nom}',
+              ),
+            ),
+
+            // Bouton de soumission fixe en bas
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: ElevatedButton.icon(
+                  onPressed: _isSubmitting ? null : _showSubmitDialog,
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                      : const Icon(Icons.check_circle_outline, size: 22),
+                  label: Text(
+                    _isSubmitting ? 'Soumission...' : 'Terminer et Soumettre',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber[700],
+                    backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    minimumSize: const Size(double.infinity, 54),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 2,
                   ),
                 ),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.stop_circle_outlined),
-                  label: const Text('Arrêter'),
-                  onPressed: _afficherConfirmationArreter, // Utilise la nouvelle modale pour arrêter et voir correction
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Color _getTimerColor() {
+    if (widget.epreuve.dureeMinutes == 0) return Colors.blue;
+
+    final percentage = _elapsedSeconds / (widget.epreuve.dureeMinutes * 60);
+    if (percentage >= 1.0) return Colors.red;
+    if (percentage >= 0.8) return Colors.orange;
+    return Colors.blue;
+  }
+
+  String _formatDuration(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    } else {
+      return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    }
+  }
+
+  Future<bool?> _showExitConfirmDialog() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Quitter la composition'),
+        content: const Text(
+          'Êtes-vous sûr de vouloir quitter ? Votre progression sera sauvegardée et vous pourrez reprendre plus tard.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Rester'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Quitter'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSubmitDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmer la soumission'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Êtes-vous sûr de vouloir soumettre votre copie ?'),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.timer, size: 18, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text(
+                  'Temps écoulé: ${_formatDuration(_elapsedSeconds)}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            if (widget.epreuve.dureeMinutes > 0) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.access_time, size: 18, color: Colors.grey),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Durée recommandée: ${widget.epreuve.dureeMinutes} min',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _submitEpreuve();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Soumettre'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submitEpreuve() async {
+    setState(() => _isSubmitting = true);
+
+    try {
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser == null || widget.epreuve.id == null) {
+        throw Exception('Utilisateur non connecté ou épreuve invalide');
+      }
+
+      await ref.read(epreuveProgressionProvider.notifier).submitEpreuve(
+        widget.epreuve.id!,
+        currentUser.uid,
+        _elapsedSeconds,
+      );
+
+      if (mounted) {
+        // Afficher un message de succès
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Épreuve soumise avec succès !'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Attendre un peu pour que l'utilisateur voit le message
+        await Future.delayed(const Duration(seconds: 1));
+
+        if (mounted) {
+          // Naviguer vers la page de correction si disponible, sinon retour
+          if (widget.epreuve.corrigePdfUrl != null) {
+            context.go('/epreuve_correction', extra: widget.epreuve);
+          } else {
+            context.go('/epreuves');
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de la soumission: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 }

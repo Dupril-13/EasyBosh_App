@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Provider & AuthState
-import '../../core/providers/auth_provider.dart'; 
+import '../../core/providers/auth_provider.dart';
 
 // Pages d'authentification
 import '../../pages/auth/get_started_page.dart';
@@ -13,8 +13,9 @@ import '../../pages/auth/verification_page.dart';
 
 // Pages Étudiant
 import '../../pages/student/cours_page.dart';
-import '../../pages/student/cours/matiere_detail_page.dart'; 
-import '../../models/matiere_model.dart'; 
+import '../../pages/student/cours/matiere_detail_page.dart';
+import '../../models/matiere_model.dart';
+import '../../models/epreuve_model.dart'; // ← AJOUT IMPORTANT
 import '../../pages/student/epreuves_page.dart';
 import '../../pages/student/quiz_page.dart';
 import '../../pages/student/statistiques_page.dart';
@@ -29,7 +30,7 @@ import '../../pages/student/epreuves/epreuve_details_page.dart';
 import '../../pages/student/epreuves/epreuve_composition_page.dart';
 import '../../pages/student/epreuves/epreuve_correction_page.dart';
 import '../../pages/student/quiz/quiz_matiere_selection_page.dart';
-import '../../pages/student/quiz/quiz_list_par_matiere_page.dart'; 
+import '../../pages/student/quiz/quiz_list_par_matiere_page.dart';
 import '../../pages/student/quiz/quiz_play_page.dart';
 import '../../pages/student/quiz/quiz_express_placeholder_page.dart';
 import '../../pages/student/quiz/quiz_bilan_niveau_placeholder_page.dart';
@@ -45,7 +46,7 @@ import '../../pages/staff/admin/manage_admins_page.dart';
 import '../../pages/staff/admin/activity_logs_page.dart';
 import '../../pages/staff/admin/admin_profile_page.dart';
 import '../../pages/staff/teacher/teacher_dashboard_page.dart';
-import '../../pages/staff/teacher/edit_chapitre_page.dart';   
+import '../../pages/staff/teacher/edit_chapitre_page.dart';
 import '../../pages/staff/teacher/manage_quizzes_page.dart';
 import '../../pages/staff/teacher/teacher_analytics_page.dart';
 import '../../pages/staff/teacher/teacher_profile_page.dart';
@@ -54,7 +55,7 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(de
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authStateNotifierForGoRouter = ValueNotifier<Object?>(null);
-  
+
   ref.listen(authProvider, (previousState, newState) {
     authStateNotifierForGoRouter.value = newState;
   });
@@ -65,7 +66,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/staff-login',
+    initialLocation: '/get-started',
     debugLogDiagnostics: true,
     refreshListenable: authStateNotifierForGoRouter,
     redirect: (BuildContext context, GoRouterState state) {
@@ -81,7 +82,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final bool isOnVerificationPath = currentLocation == verificationPath;
 
       if (!isLoggedIn) {
-        if (!isOnPublicAuthPath && !isOnVerificationPath) return '/get-started'; 
+        if (!isOnPublicAuthPath && !isOnVerificationPath) return '/get-started';
       } else {
         if (currentLocation == '/get-started' || currentLocation == '/auth/login' || currentLocation == '/auth/signup') {
           if (userRole == 'admin') return '/admin/dashboard';
@@ -93,7 +94,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         if (userRole == 'teacher' && (currentLocation.startsWith('/admin') || currentLocation == '/staff-login')) return '/teacher/dashboard';
         if (userRole == 'admin' && currentLocation == '/staff-login') return '/admin/dashboard';
       }
-      return null; 
+      return null;
     },
     routes: <RouteBase>[
       GoRoute(path: '/get-started', name: 'getStarted', builder: (context, state) => const GetStartedPage()),
@@ -111,17 +112,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/staff-login', name: 'staffLogin', builder: (context, state) => const StaffLoginPage()),
-      
+
       // Routes Admin
       GoRoute(path: '/admin/dashboard', name: 'adminDashboard', builder: (BuildContext context, GoRouterState state) => const AdminDashboardPage()),
-      GoRoute(path: '/admin/manage-teachers', name: 'adminManageTeachers', builder: (BuildContext context, GoRouterState state) => const ManageTeachersPage()), 
-      GoRoute(path: '/admin/manage-admins', name: 'adminManageAdmins', builder: (BuildContext context, GoRouterState state) => const ManageAdminsPage()), 
-      GoRoute(path: '/admin/activity-logs', name: 'adminActivityLogs', builder: (BuildContext context, GoRouterState state) => const ActivityLogsPage()), 
-      GoRoute(path: '/admin/profile', name: 'adminProfile', builder: (BuildContext context, GoRouterState state) => const AdminProfilePage()), 
+      GoRoute(path: '/admin/manage-teachers', name: 'adminManageTeachers', builder: (BuildContext context, GoRouterState state) => const ManageTeachersPage()),
+      GoRoute(path: '/admin/manage-admins', name: 'adminManageAdmins', builder: (BuildContext context, GoRouterState state) => const ManageAdminsPage()),
+      GoRoute(path: '/admin/activity-logs', name: 'adminActivityLogs', builder: (BuildContext context, GoRouterState state) => const ActivityLogsPage()),
+      GoRoute(path: '/admin/profile', name: 'adminProfile', builder: (BuildContext context, GoRouterState state) => const AdminProfilePage()),
 
       // Routes Teacher
       GoRoute(path: '/teacher/dashboard', name: 'teacherDashboard', builder: (BuildContext context, GoRouterState state) => const TeacherDashboardPage()),
-      GoRoute(path: '/teacher/cours/chapitres/add', name: 'teacherAddChapitre', builder: (context, state) => const EditChapitrePage()), 
+      GoRoute(path: '/teacher/cours/chapitres/add', name: 'teacherAddChapitre', builder: (context, state) => const EditChapitrePage()),
       GoRoute(
         path: '/teacher/cours/chapitres/:chapitreId/edit',
         name: 'teacherEditChapitre',
@@ -134,9 +135,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/teacher/cours/lecons/add', name: 'teacherAddLecon', builder: (context, state) => const Center(child: Text("Pour ajouter une leçon, passez par la gestion des cours du tableau de bord enseignant."))),
       GoRoute(path: '/teacher/cours/lecons/:leconId/edit', name: 'teacherEditLecon', builder: (context, state) => const Center(child: Text("Pour modifier une leçon, passez par la gestion des cours du tableau de bord enseignant."))),
-      GoRoute(path: '/teacher/manage-quizzes', name: 'teacherManageQuizzes', builder: (BuildContext context, GoRouterState state) => const ManageQuizzesPage()), 
-      GoRoute(path: '/teacher/analytics', name: 'teacherAnalytics', builder: (BuildContext context, GoRouterState state) => const TeacherAnalyticsPage()), 
-      GoRoute(path: '/teacher/profile', name: 'teacherProfile', builder: (BuildContext context, GoRouterState state) => const TeacherProfilePage()), 
+      GoRoute(path: '/teacher/manage-quizzes', name: 'teacherManageQuizzes', builder: (BuildContext context, GoRouterState state) => const ManageQuizzesPage()),
+      GoRoute(path: '/teacher/analytics', name: 'teacherAnalytics', builder: (BuildContext context, GoRouterState state) => const TeacherAnalyticsPage()),
+      GoRoute(path: '/teacher/profile', name: 'teacherProfile', builder: (BuildContext context, GoRouterState state) => const TeacherProfilePage()),
 
       // Student Routes
       GoRoute(path: '/cours', name: 'cours', builder: (context, state) => const CoursPage()),
@@ -149,28 +150,57 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return MatiereDetailPage(matiere: matiere);
         },
       ),
+
+      // Routes Épreuves
       GoRoute(path: '/epreuves', name: 'epreuves', builder: (context, state) => const EpreuvesPage()),
-      GoRoute(path: '/quiz',name: 'quiz',builder: (context, state) => const QuizPage()),
-      GoRoute(path: '/statistiques',name: 'statistiques',builder: (context, state) => const StatistiquesPage()),
-      GoRoute(path: '/settings',name: 'settings',builder: (context, state) => const SettingsPage()),
-      GoRoute(path: '/help',name: 'help',builder: (context, state) => const HelpPage()),
-      GoRoute(path: '/notifications',name: 'notifications',builder: (context, state) => const NotificationsPage()),
       GoRoute(path: '/anciens_sujets', name: 'anciensSujets', builder: (context, state) => const AnciensSujetsPage()),
       GoRoute(path: '/colleges_connus', name: 'collegesConnus', builder: (context, state) => const SujetsCollegesPage()),
       GoRoute(path: '/examens_blancs', name: 'examensBlancs', builder: (context, state) => const ExamensBlancsPage()),
       GoRoute(path: '/epreuves_exclusives', name: 'epreuvesExclusives', builder: (context, state) => const EpreuvesExclusivesPage()),
-      GoRoute(path: '/epreuve_details', name: 'epreuveDetails', builder: (context, state) {
-        final epreuveDetails = state.extra as Map<String, String>? ?? const {};
-        return EpreuveDetailsPage(epreuveDetails: epreuveDetails);
-      }),
-      GoRoute(path: '/epreuve_composition', name: 'epreuveComposition', builder: (context, state) {
-        final epreuveDetails = state.extra as Map<String, String>? ?? const {};
-        return EpreuveCompositionPage(epreuveDetails: epreuveDetails);
-      }),
-      GoRoute(path: '/epreuve_correction', name: 'epreuveCorrection', builder: (context, state) {
-        final epreuveDetails = state.extra as Map<String, String>? ?? const {};
-        return EpreuveCorrectionPage(epreuveDetails: epreuveDetails);
-      }),
+
+      // NOUVELLES ROUTES AVEC OBJET EPREUVE
+      GoRoute(
+        path: '/epreuve_details',
+        name: 'epreuveDetails',
+        builder: (context, state) {
+          final epreuve = state.extra as Epreuve?;
+          if (epreuve == null) {
+            return const Scaffold(
+              body: Center(child: Text('Erreur: Détails de l\'épreuve non fournis.')),
+            );
+          }
+          return EpreuveDetailsPage(epreuve: epreuve);
+        },
+      ),
+      GoRoute(
+        path: '/epreuve_composition',
+        name: 'epreuveComposition',
+        builder: (context, state) {
+          final epreuve = state.extra as Epreuve?;
+          if (epreuve == null) {
+            return const Scaffold(
+              body: Center(child: Text('Erreur: Épreuve non fournie.')),
+            );
+          }
+          return EpreuveCompositionPage(epreuve: epreuve);
+        },
+      ),
+      GoRoute(
+        path: '/epreuve_correction',
+        name: 'epreuveCorrection',
+        builder: (context, state) {
+          final epreuve = state.extra as Epreuve?;
+          if (epreuve == null) {
+            return const Scaffold(
+              body: Center(child: Text('Erreur: Épreuve non fournie.')),
+            );
+          }
+          return EpreuveCorrectionPage(epreuve: epreuve);
+        },
+      ),
+
+      // Routes Quiz
+      GoRoute(path: '/quiz', name: 'quiz', builder: (context, state) => const QuizPage()),
       GoRoute(path: '/quiz/selection-matiere', name: 'quizMatiereSelection', builder: (context, state) => const QuizMatiereSelectionPage()),
       GoRoute(path: '/quiz/list-par-matiere/:matiereId', name: 'quizListParMatiere', builder: (context, state) => QuizListByMatierePage(matiereNom: state.pathParameters['matiereId']!)),
       GoRoute(
@@ -192,6 +222,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return const Scaffold(body: Center(child: Text("Résultats du quiz non fournis correctement.")));
         },
       ),
+
+      // Autres routes
+      GoRoute(path: '/statistiques', name: 'statistiques', builder: (context, state) => const StatistiquesPage()),
+      GoRoute(path: '/settings', name: 'settings', builder: (context, state) => const SettingsPage()),
+      GoRoute(path: '/help', name: 'help', builder: (context, state) => const HelpPage()),
+      GoRoute(path: '/notifications', name: 'notifications', builder: (context, state) => const NotificationsPage()),
       GoRoute(path: '/chatbot', name: 'chatbot', builder: (context, state) => const ChatbotPage()),
     ],
   );

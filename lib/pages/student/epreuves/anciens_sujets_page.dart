@@ -1,68 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:easybosh_v2/models/epreuve_model.dart';
+import 'package:easybosh_v2/providers/student_epreuves_provider.dart';
+import 'package:easybosh_v2/providers/auth_provider.dart';
+import 'package:easybosh_v2/widgets/student/epreuve_card.dart';
+import 'package:easybosh_v2/core/providers/auth_provider.dart';
 
-class AnciensSujetsPage extends StatefulWidget {
+class AnciensSujetsPage extends ConsumerStatefulWidget {
   const AnciensSujetsPage({super.key});
 
   @override
-  State<AnciensSujetsPage> createState() => _AnciensSujetsPageState();
+  ConsumerState<AnciensSujetsPage> createState() => _AnciensSujetsPageState();
 }
 
-class _AnciensSujetsPageState extends State<AnciensSujetsPage> {
+class _AnciensSujetsPageState extends ConsumerState<AnciensSujetsPage> {
+  final TextEditingController _searchController = TextEditingController();
   String? _selectedSession;
   String? _selectedSerie;
-  String? _selectedMatiere;
-
-  final List<String> _sessions = ['2023', '2022', '2021', '2020', '2019', '2018'];
-  final List<String> _series = ['A', 'C', 'D', 'TI', 'SES', 'L'];
-  final List<String> _matieres = ['Mathématiques', 'Physique', 'Chimie', 'SVT', 'Français', 'Philosophie', 'Anglais', 'Histoire-Géo'];
-
-  late List<Map<String, String>> _epreuvesFiltrees;
-  final TextEditingController _searchController = TextEditingController();
+  int? _selectedMatiereId;
 
   @override
   void initState() {
     super.initState();
-    _epreuvesFiltrees = _genererEpreuvesFactices();
-    _searchController.addListener(_filterEpreuves);
+    _searchController.addListener(_onSearchChanged);
   }
 
-  List<Map<String, String>> _genererEpreuvesFactices() {
-    return List.generate(
-      15,
-      (index) => {
-        'titre': 'Sujet Examen ${2023 - index % 6} - ${String.fromCharCode(65 + index % 5)}${index + 1}',
-        'matiere': _matieres[index % _matieres.length],
-        'annee': _sessions[index % _sessions.length],
-        'serie': _series[index % _series.length],
-        'duree': '${(index % 3) + 2}h',
-      },
-    );
-  }
-
-  void _filterEpreuves() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      _epreuvesFiltrees = _genererEpreuvesFactices().where((epreuve) {
-        final titreMatch = epreuve['titre']!.toLowerCase().contains(query);
-        final matiereMatch = epreuve['matiere']!.toLowerCase().contains(query);
-        final sessionMatch = _selectedSession == null || epreuve['annee'] == _selectedSession;
-        final serieMatch = _selectedSerie == null || epreuve['serie'] == _selectedSerie;
-        final matiereFilterMatch = _selectedMatiere == null || epreuve['matiere'] == _selectedMatiere;
-        return (titreMatch || matiereMatch) && sessionMatch && serieMatch && matiereFilterMatch;
-      }).toList();
-    });
-  }
-
- @override
+  @override
   void dispose() {
-    _searchController.removeListener(_filterEpreuves);
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
   }
 
+  void _onSearchChanged() {
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
+    final epreuvesAsync = ref.watch(epreuvesByTypeProvider(EpreuveType.ancienSujet));
+    final currentUser = ref.watch(currentUserProvider);
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -73,7 +52,7 @@ class _AnciensSujetsPageState extends State<AnciensSujetsPage> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/epreuves'); // Fallback vers la page principale des épreuves
+              context.go('/epreuves');
             }
           },
         ),
@@ -83,30 +62,242 @@ class _AnciensSujetsPageState extends State<AnciensSujetsPage> {
         ),
         centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+      body: epreuvesAsync.when(
+        data: (epreuves) {
+          // Appliquer les filtres
+          var filteredEpreuves = epreuves.where((e) {
+            // Filtre de recherche
+            if (_searchController.text.isNotEmpty) {
+              final searchLower = _searchController.text.toLowerCase();
+              if (!e.nom.toLowerCase().contains(searchLower) &&
+                  !e.matiereDisplay.toLowerCase().contains(searchLower)) {
+                return false;
+              }
+            }
+
+            // Filtre par session
+            if (_selectedSession != null && e.sessionExamen != _selectedSession) {
+              return false;
+            }
+
+            // Filtre par série
+            if (_selectedSerie != null && !e.seriesCodes.contains(_selectedSerie)) {
+              return false;
+            }
+
+            // Filtre par matière
+            if (_selectedMatiereId != null && e.matiereId != _selectedMatiereId) {
+              return false;
+            }
+
+            return true;
+          }).toList();
+
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                // Barre de recherche
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Rechercher un sujet, matière...',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey[200],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Filtres en chips
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterChip(
+                        label: _selectedSession ?? 'Session',
+                        isActive: _selectedSession != null,
+                        onTap: () => _showSessionFilter(),
+                        onClear: _selectedSession != null ? () => setState(() => _selectedSession = null) : null,
+                      ),
+                      const SizedBox(width: 8),
+                      if (currentUser?.niveauCode != '3eme')
+                        _buildFilterChip(
+                          label: _selectedSerie ?? 'Série',
+                          isActive: _selectedSerie != null,
+                          onTap: () => _showSerieFilter(),
+                          onClear: _selectedSerie != null ? () => setState(() => _selectedSerie = null) : null,
+                        ),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(
+                        label: 'Matière',
+                        isActive: _selectedMatiereId != null,
+                        onTap: () => _showMatiereFilter(epreuves),
+                        onClear: _selectedMatiereId != null ? () => setState(() => _selectedMatiereId = null) : null,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // En-tête de résultats
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${filteredEpreuves.length} sujet(s) trouvé(s)',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Liste des épreuves
+                Expanded(
+                  child: filteredEpreuves.isEmpty
+                      ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Aucun sujet trouvé',
+                          style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Essayez de modifier vos filtres',
+                          style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                        ),
+                      ],
+                    ),
+                  )
+                      : ListView.builder(
+                    itemCount: filteredEpreuves.length,
+                    itemBuilder: (context, index) {
+                      return EpreuveCard(epreuve: filteredEpreuves[index]);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+              const SizedBox(height: 16),
+              Text(
+                'Erreur de chargement',
+                style: TextStyle(fontSize: 18, color: Colors.grey[700]),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                error.toString(),
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+    VoidCallback? onClear,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.blue : Colors.grey[200],
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isActive ? Colors.blue : Colors.grey[400]!,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildFiltersRow(),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Rechercher un sujet, matière...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0), borderSide: BorderSide.none),
-                filled: true,
-                fillColor: Colors.grey[200],
+            Text(
+              label,
+              style: TextStyle(
+                color: isActive ? Colors.white : Colors.grey[700],
+                fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 20),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Épreuves Disponibles', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+            const SizedBox(width: 4),
+            if (isActive && onClear != null)
+              GestureDetector(
+                onTap: onClear,
+                child: const Icon(Icons.close, size: 16, color: Colors.white),
+              )
+            else
+              Icon(Icons.arrow_drop_down, size: 16, color: isActive ? Colors.white : Colors.grey[700]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSessionFilter() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Filtrer par session',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: _buildEpreuvesListView(),
+            const SizedBox(height: 16),
+            ListTile(
+              title: const Text('BEPC'),
+              onTap: () {
+                setState(() => _selectedSession = 'BEPC');
+                Navigator.pop(context);
+              },
+              trailing: _selectedSession == 'BEPC' ? const Icon(Icons.check, color: Colors.blue) : null,
+            ),
+            ListTile(
+              title: const Text('Probatoire'),
+              onTap: () {
+                setState(() => _selectedSession = 'Probatoire');
+                Navigator.pop(context);
+              },
+              trailing: _selectedSession == 'Probatoire' ? const Icon(Icons.check, color: Colors.blue) : null,
+            ),
+            ListTile(
+              title: const Text('Baccalauréat'),
+              onTap: () {
+                setState(() => _selectedSession = 'Baccalauréat');
+                Navigator.pop(context);
+              },
+              trailing: _selectedSession == 'Baccalauréat' ? const Icon(Icons.check, color: Colors.blue) : null,
             ),
           ],
         ),
@@ -114,149 +305,77 @@ class _AnciensSujetsPageState extends State<AnciensSujetsPage> {
     );
   }
 
-  Widget _buildFiltersRow() {
-    return SizedBox(
-      height: 60, // Hauteur pour les DropdownButtonFormField
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _buildDropdownFilter(
-            hint: 'Session',
-            value: _selectedSession,
-            items: _sessions,
-            onChanged: (value) {
-              setState(() {
-                _selectedSession = value;
-                _filterEpreuves();
-              });
-            },
-          ),
-          const SizedBox(width: 12),
-          _buildDropdownFilter(
-            hint: 'Série',
-            value: _selectedSerie,
-            items: _series,
-            onChanged: (value) {
-              setState(() {
-                _selectedSerie = value;
-                _filterEpreuves();
-              });
-            },
-          ),
-          const SizedBox(width: 12),
-          _buildDropdownFilter(
-            hint: 'Matière',
-            value: _selectedMatiere,
-            items: _matieres,
-            onChanged: (value) {
-              setState(() {
-                _selectedMatiere = value;
-                _filterEpreuves();
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
+  void _showSerieFilter() {
+    final currentUser = ref.read(currentUserProvider);
+    final userSerie = currentUser?.serieCode;
 
-  Widget _buildDropdownFilter({
-    required String hint,
-    required String? value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return Container(
-      width: 130, // Largeur réduite de 140 à 130
-      padding: const EdgeInsets.symmetric(vertical: 4), // Espace vertical
-      child: DropdownButtonFormField<String>(
-        decoration: InputDecoration(
-          labelText: hint,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          filled: true,
-          fillColor: Colors.white,
-          isDense: true,
-        ),
-        value: value,
-        hint: Text(hint, style: const TextStyle(fontSize: 14)),
-        items: items.map((String item) {
-          return DropdownMenuItem<String>(
-            value: item,
-            child: Text(item, style: const TextStyle(fontSize: 14), overflow: TextOverflow.ellipsis),
-          );
-        }).toList(),
-        onChanged: onChanged,
-      ),
-    );
-  }
+    final series = ['A', 'C', 'D', 'E', 'F'];
 
-  Widget _buildEpreuvesListView() {
-    if (_epreuvesFiltrees.isEmpty) {
-      return const Center(
-        child: Text('Aucune épreuve trouvée pour les filtres ou la recherche.'),
-      );
-    }
-    return ListView.builder(
-      itemCount: _epreuvesFiltrees.length,
-      itemBuilder: (context, index) {
-        final epreuve = _epreuvesFiltrees[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12.0),
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(epreuve['titre']!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _buildInfoChip(Icons.calendar_today, epreuve['annee']!, Colors.blueGrey),
-                    const SizedBox(width: 8),
-                    _buildInfoChip(Icons.library_books, epreuve['serie']!, Colors.teal),
-                    const SizedBox(width: 8),
-                    Flexible(child: _buildInfoChip(Icons.subject, epreuve['matiere']!, Colors.orange)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      context.go('/epreuve_details', extra: epreuve);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-                    ),
-                    child: const Text('Voir'),
-                  ),
-                ),
-              ],
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Filtrer par série',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 16),
+            ...series.map((serie) => ListTile(
+              title: Text(serie),
+              onTap: () {
+                setState(() => _selectedSerie = serie);
+                Navigator.pop(context);
+              },
+              trailing: _selectedSerie == serie ? const Icon(Icons.check, color: Colors.blue) : null,
+            )),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildInfoChip(IconData icon, String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(text, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-          ),
-        ],
+  void _showMatiereFilter(List<Epreuve> epreuves) {
+    // Obtenir la liste unique des matières
+    final matieresMap = <int, String>{};
+    for (var epreuve in epreuves) {
+      matieresMap[epreuve.matiereId] = epreuve.matiereDisplay;
+    }
+
+    final matieres = matieresMap.entries.toList();
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Filtrer par matière',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ...matieres.map((entry) => ListTile(
+              title: Text(entry.value),
+              onTap: () {
+                setState(() => _selectedMatiereId = entry.key);
+                Navigator.pop(context);
+              },
+              trailing: _selectedMatiereId == entry.key ? const Icon(Icons.check, color: Colors.blue) : null,
+            )),
+          ],
+        ),
       ),
     );
   }
