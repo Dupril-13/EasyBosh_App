@@ -16,6 +16,8 @@ class SujetsCollegesPage extends ConsumerStatefulWidget {
 class _SujetsCollegesPageState extends ConsumerState<SujetsCollegesPage> {
   final TextEditingController _searchController = TextEditingController();
   int? _selectedMatiereId;
+  int? _selectedAnnee;
+  String? _selectedVille;
 
   @override
   void initState() {
@@ -40,7 +42,7 @@ class _SujetsCollegesPageState extends ConsumerState<SujetsCollegesPage> {
     final currentUser = ref.watch(currentUserProvider);
 
     return Scaffold(
-      backgroundColor: Colors.white, // Changé à blanc
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
@@ -81,6 +83,14 @@ class _SujetsCollegesPageState extends ConsumerState<SujetsCollegesPage> {
               return false;
             }
 
+            if (_selectedAnnee != null && e.anneeExamen != _selectedAnnee) {
+              return false;
+            }
+
+            if (_selectedVille != null && e.villeEtablissement != _selectedVille) {
+              return false;
+            }
+
             return true;
           }).toList();
 
@@ -107,18 +117,35 @@ class _SujetsCollegesPageState extends ConsumerState<SujetsCollegesPage> {
               ),
 
               Container(
-                width: double.infinity, // Prend toute la largeur
+                width: double.infinity,
                 color: Colors.white,
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Row( // Changé de Align à Row pour aligner à gauche
-                  children: [
-                    _buildFilterChip(
-                      label: 'Matière',
-                      isActive: _selectedMatiereId != null,
-                      onTap: () => _showMatiereFilter(epreuvesEtudiant),
-                      onClear: _selectedMatiereId != null ? () => setState(() => _selectedMatiereId = null) : null,
-                    ),
-                  ],
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterChip(
+                        label: 'Matière',
+                        isActive: _selectedMatiereId != null,
+                        onTap: () => _showMatiereFilter(epreuvesEtudiant),
+                        onClear: _selectedMatiereId != null ? () => setState(() => _selectedMatiereId = null) : null,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(
+                        label: 'Année',
+                        isActive: _selectedAnnee != null,
+                        onTap: () => _showAnneeFilter(epreuvesEtudiant),
+                        onClear: _selectedAnnee != null ? () => setState(() => _selectedAnnee = null) : null,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(
+                        label: 'Ville',
+                        isActive: _selectedVille != null,
+                        onTap: () => _showVilleFilter(epreuvesEtudiant),
+                        onClear: _selectedVille != null ? () => setState(() => _selectedVille = null) : null,
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
@@ -235,10 +262,10 @@ class _SujetsCollegesPageState extends ConsumerState<SujetsCollegesPage> {
       ),
       isScrollControlled: true,
       constraints: BoxConstraints(
-        maxWidth: MediaQuery.of(context).size.width, // Largeur maximale = largeur écran
+        maxWidth: MediaQuery.of(context).size.width,
       ),
       builder: (context) => Container(
-        width: double.infinity, // Prend toute la largeur disponible
+        width: double.infinity,
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -257,6 +284,112 @@ class _SujetsCollegesPageState extends ConsumerState<SujetsCollegesPage> {
                 Navigator.pop(context);
               },
               trailing: _selectedMatiereId == entry.key ? const Icon(Icons.check, color: Colors.orange) : null,
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAnneeFilter(List<Epreuve> epreuves) {
+    final anneesSet = <int>{};
+    for (var epreuve in epreuves) {
+      if (epreuve.anneeExamen != null) {
+        anneesSet.add(epreuve.anneeExamen!);
+      }
+    }
+
+    final annees = anneesSet.toList()..sort((a, b) => b.compareTo(a)); // Tri décroissant
+
+    if (annees.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aucune année disponible')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width,
+      ),
+      builder: (context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Filtrer par année',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ...annees.map((annee) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(annee.toString()),
+              onTap: () {
+                setState(() => _selectedAnnee = annee);
+                Navigator.pop(context);
+              },
+              trailing: _selectedAnnee == annee ? const Icon(Icons.check, color: Colors.orange) : null,
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showVilleFilter(List<Epreuve> epreuves) {
+    final villesSet = <String>{};
+    for (var epreuve in epreuves) {
+      if (epreuve.villeEtablissement != null && epreuve.villeEtablissement!.isNotEmpty) {
+        villesSet.add(epreuve.villeEtablissement!);
+      }
+    }
+
+    final villes = villesSet.toList()..sort();
+
+    if (villes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aucune ville disponible')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width,
+      ),
+      builder: (context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Filtrer par ville',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ...villes.map((ville) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(ville),
+              onTap: () {
+                setState(() => _selectedVille = ville);
+                Navigator.pop(context);
+              },
+              trailing: _selectedVille == ville ? const Icon(Icons.check, color: Colors.orange) : null,
             )),
           ],
         ),

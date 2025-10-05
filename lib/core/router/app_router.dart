@@ -66,7 +66,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/get-started',
+    initialLocation: '/staff-login',
     debugLogDiagnostics: true,
     refreshListenable: authStateNotifierForGoRouter,
     redirect: (BuildContext context, GoRouterState state) {
