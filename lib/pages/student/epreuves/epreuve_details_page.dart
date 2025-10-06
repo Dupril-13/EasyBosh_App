@@ -173,17 +173,33 @@ class EpreuveDetailsPage extends ConsumerWidget {
                 children: [
                   if (isCompleted) ...[
                     ElevatedButton.icon(
+                      icon: const Icon(Icons.refresh, size: 20),
+                      label: const Text('Recommencer l\'Épreuve', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      onPressed: () => _showRestartDialog(context, ref, currentUser),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
                       icon: const Icon(Icons.visibility_outlined, size: 22),
                       label: const Text('Voir la Correction', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       onPressed: epreuve.corrigePdfUrl != null
                           ? () => context.push('/epreuve_correction', extra: epreuve)
                           : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.blue,
+                        side: BorderSide(
+                          color: epreuve.corrigePdfUrl != null ? Colors.blue : Colors.grey[300]!,
+                          width: 1.5,
+                        ),
                         minimumSize: const Size(double.infinity, 54),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
+                        disabledForegroundColor: Colors.grey[400],
                       ),
                     ),
                     if (epreuve.corrigePdfUrl == null)
@@ -195,18 +211,6 @@ class EpreuveDetailsPage extends ConsumerWidget {
                           textAlign: TextAlign.center,
                         ),
                       ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.refresh, size: 20),
-                      label: const Text('Recommencer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                      onPressed: () => _showRestartDialog(context, ref, currentUser),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.orange,
-                        side: const BorderSide(color: Colors.orange, width: 1.5),
-                        minimumSize: const Size(double.infinity, 54),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
                   ] else if (isStarted) ...[
                     ElevatedButton.icon(
                       icon: const Icon(Icons.play_arrow, size: 22),
@@ -220,6 +224,33 @@ class EpreuveDetailsPage extends ConsumerWidget {
                         elevation: 0,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.visibility_outlined, size: 22),
+                      label: const Text('Voir la Correction', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      onPressed: epreuve.corrigePdfUrl != null
+                          ? () => context.push('/epreuve_correction', extra: epreuve)
+                          : null,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.blue,
+                        side: BorderSide(
+                          color: epreuve.corrigePdfUrl != null ? Colors.blue : Colors.grey[300]!,
+                          width: 1.5,
+                        ),
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        disabledForegroundColor: Colors.grey[400],
+                      ),
+                    ),
+                    if (epreuve.corrigePdfUrl == null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Corrigé non disponible pour cette épreuve',
+                          style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                   ] else ...[
                     ElevatedButton.icon(
                       icon: const Icon(Icons.play_arrow, size: 22),
@@ -233,6 +264,33 @@ class EpreuveDetailsPage extends ConsumerWidget {
                         elevation: 0,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.visibility_outlined, size: 22),
+                      label: const Text('Voir la Correction', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      onPressed: epreuve.corrigePdfUrl != null
+                          ? () => context.push('/epreuve_correction', extra: epreuve)
+                          : null,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.blue,
+                        side: BorderSide(
+                          color: epreuve.corrigePdfUrl != null ? Colors.blue : Colors.grey[300]!,
+                          width: 1.5,
+                        ),
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        disabledForegroundColor: Colors.grey[400],
+                      ),
+                    ),
+                    if (epreuve.corrigePdfUrl == null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Corrigé non disponible pour cette épreuve',
+                          style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                   ],
                 ],
               ),
@@ -322,11 +380,10 @@ class EpreuveDetailsPage extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(dialogContext); // Fermer la dialog
+              Navigator.pop(dialogContext);
 
               if (epreuve.id != null && currentUser != null) {
                 try {
-                  // Afficher un loader
                   if (context.mounted) {
                     showDialog(
                       context: context,
@@ -337,23 +394,19 @@ class EpreuveDetailsPage extends ConsumerWidget {
                     );
                   }
 
-                  // Réinitialiser en recommençant
                   await ref.read(epreuveProgressionProvider.notifier).startEpreuve(
                     epreuve.id!,
                     currentUser.uid,
                   );
 
-                  // Fermer le loader
                   if (context.mounted) {
                     Navigator.pop(context);
                   }
 
-                  // Rediriger vers la composition
                   if (context.mounted) {
                     context.push('/epreuve_composition', extra: epreuve);
                   }
                 } catch (e) {
-                  // Fermer le loader en cas d'erreur
                   if (context.mounted) {
                     Navigator.pop(context);
                   }

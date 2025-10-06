@@ -1,7 +1,10 @@
+// ================================================
+// lib/pages/student/quiz_page.dart
+// Hub principal des quiz avec placeholders
+// ================================================
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:iconsax_flutter/iconsax_flutter.dart';
-import '../../widgets/custom_navbar.dart';
 
 class QuizPage extends StatefulWidget {
   const QuizPage({super.key});
@@ -11,451 +14,313 @@ class QuizPage extends StatefulWidget {
 }
 
 class _QuizPageState extends State<QuizPage> {
-  int _currentIndex = 2;
-
-  final List<Map<String, dynamic>> _quizCategories = [
-    {
-      'nom': 'Quiz par Matière',
-      'icon': Icons.subject,
-      'color': Colors.blue,
-      'description': 'Quiz par chapitre, thème ou difficulté.',
-      'temps': '10-30 min',
-      'niveau': 'Tous niveaux',
-      'route': '/quiz_par_matiere_selection',
-    },
-    {
-      'nom': 'Quiz Challenge',
-      'icon': Icons.emoji_events,
-      'color': Colors.purple,
-      'description': 'Défis ardus et quiz originaux.',
-      'temps': '20-45 min',
-      'niveau': 'Avancé',
-      'route': '/quiz_challenge_list',
-    },
-    {
-      'nom': 'Révision Express',
-      'icon': Icons.flash_on,
-      'color': Colors.orange,
-      'description': 'Révision rapide sur un sujet/chapitre.',
-      'temps': '5-15 min',
-      'niveau': 'Adapté',
-      'route': '/quiz_express_placeholder',
-    },
-    {
-      'nom': 'Bilan par Niveau',
-      'icon': Icons.school,
-      'color': Colors.green,
-      'description': 'Maîtrise globale par niveau scolaire.',
-      'temps': '30-60 min',
-      'niveau': 'Spécifique',
-      'route': '/quiz_bilan_niveau_placeholder',
-    },
-  ];
-
-  final List<Map<String, dynamic>> _quizRecents = [
-    {
-      'titre': 'Quiz Mathématiques - Algèbre',
-      'matiere': 'Mathématiques',
-      'points': 15,
-      'score': 85,
-      'temps': '12 min',
-      'date': 'Aujourd\'hui',
-    },
-    {
-      'titre': 'Quiz Physique - Mécanique',
-      'matiere': 'Physique',
-      'points': 20,
-      'score': 72,
-      'temps': '18 min',
-      'date': 'Hier',
-    },
-    {
-      'titre': 'Quiz Français - Grammaire',
-      'matiere': 'Français',
-      'points': 10,
-      'score': 90,
-      'temps': '8 min',
-      'date': 'Il y a 2 jours',
-    },
-  ];
-
-  void _onNavTap(int index) {
-    if (index == _currentIndex) return;
-
-    setState(() {
-      _currentIndex = index;
-    });
-
-    switch (index) {
-      case 0:
-        context.go('/cours');
-        break;
-      case 1:
-        context.go('/epreuves');
-        break;
-      case 3:
-        context.go('/statistiques');
-        break;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    const double fabBottomMargin = kBottomNavigationBarHeight + 24.0;
-
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) {
-        if (!didPop) {
-          // Empêcher la sortie de l'app
-        }
-      },
-      child: Scaffold(
-        backgroundColor: Colors.grey[100],
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          automaticallyImplyLeading: false, // Retirer la flèche de retour
-          leading: IconButton(
-            icon: Icon(Iconsax.notification, color: Colors.grey[700]),
-            onPressed: () {
-              context.push('/notifications');
-            },
-            tooltip: 'Notifications',
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'Quiz',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
           ),
-          title: const Text(
-            'Quiz',
-            style: TextStyle(
-              color: Colors.black87,
-              fontWeight: FontWeight.bold,
-              fontSize: 24,
-            ),
-          ),
-          centerTitle: true,
-          actions: [
-            IconButton(
-              icon: Icon(Iconsax.setting_2, color: Colors.grey[700]),
-              onPressed: () {
-                context.push('/settings');
-              },
-              tooltip: 'Paramètres',
-            ),
-          ],
         ),
-        body: Column(
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.purple, Colors.purple.shade700],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        children: [
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Testez vos connaissances !',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  'Quiz interactifs pour réviser efficacement',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(
-                              Iconsax.message_question,
-                              size: 40,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Types de Quiz',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: 1.1,
-                      ),
-                      itemCount: _quizCategories.length,
-                      itemBuilder: (context, index) {
-                        final categorie = _quizCategories[index];
-                        return _buildQuizCategoryCard(categorie);
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Quiz récents',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildQuizRecents(),
-                  ],
-                ),
+            // En-tête avec illustration
+            _buildHeader(),
+            const SizedBox(height: 24),
+
+            // Section des types de quiz
+            const Text(
+              'Types de Quiz',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
               ),
             ),
-            CustomNavBar(
-              currentIndex: _currentIndex,
-              onTap: _onNavTap,
+            const SizedBox(height: 16),
+
+            // Quiz par Matière (ACTIF)
+            _buildQuizTypeCard(
+              title: 'Quiz par Matière',
+              description: 'Testez vos connaissances par matière et par chapitre',
+              icon: Icons.school,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              isActive: true,
+              onTap: () {
+                context.push('/quiz_matiere_selection');
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // Quiz Express (DÉSACTIVÉ)
+            _buildQuizTypeCard(
+              title: 'Quiz Express',
+              description: 'Questions rapides pour une révision éclair',
+              icon: Icons.flash_on,
+              gradient: LinearGradient(
+                colors: [
+                  Colors.orange.shade400,
+                  Colors.deepOrange.shade500,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              isActive: false,
+              onTap: () {
+                _showComingSoonDialog(context, 'Quiz Express');
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // Quiz Challenge (DÉSACTIVÉ)
+            _buildQuizTypeCard(
+              title: 'Quiz Challenge',
+              description: 'Défiez d\'autres élèves et montez dans le classement',
+              icon: Icons.emoji_events,
+              gradient: LinearGradient(
+                colors: [
+                  Colors.amber.shade400,
+                  Colors.orange.shade600,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              isActive: false,
+              onTap: () {
+                _showComingSoonDialog(context, 'Quiz Challenge');
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // Bilan de Niveau (DÉSACTIVÉ)
+            _buildQuizTypeCard(
+              title: 'Bilan de Niveau',
+              description: 'Évaluez votre niveau global dans toutes les matières',
+              icon: Icons.assessment,
+              gradient: LinearGradient(
+                colors: [
+                  Colors.teal.shade400,
+                  Colors.cyan.shade600,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              isActive: false,
+              onTap: () {
+                _showComingSoonDialog(context, 'Bilan de Niveau');
+              },
             ),
           ],
         ),
-        floatingActionButton: Padding(
-          padding: const EdgeInsets.only(bottom: fabBottomMargin),
-          child: FloatingActionButton(
-            onPressed: () {
-              context.push('/chatbot');
-            },
-            backgroundColor: Theme.of(context).primaryColor.withOpacity(0.9),
-            child: const Icon(Iconsax.message_question, color: Colors.white),
-            tooltip: 'EasyBot',
-          ),
-        ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
     );
   }
 
-  Widget _buildQuizCategoryCard(Map<String, dynamic> categorie) {
-    final Color cardColor = categorie['color'] as Color;
-    final IconData iconData = categorie['icon'] as IconData;
-    final String nom = categorie['nom'] as String;
-    final String description = categorie['description'] as String;
-    final String route = categorie['route'] as String? ?? '';
-
+  Widget _buildHeader() {
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 2,
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            if (route.isNotEmpty) {
-              context.go(route);
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Route non définie pour $nom'),
-                  backgroundColor: Colors.redAccent,
-                ),
-              );
-            }
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: cardColor.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    iconData,
-                    color: cardColor,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(height: 8),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
                 Text(
-                  nom,
-                  style: const TextStyle(
-                    fontSize: 14,
+                  'Quiz',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Expanded(
-                  child: Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[600],
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 8),
+                Text(
+                  'Évaluez vos connaissances et progressez',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
               ],
             ),
           ),
-        ),
+          const SizedBox(width: 16),
+          const Icon(
+            Icons.quiz,
+            size: 80,
+            color: Colors.white,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildQuizRecents() {
-    return Column(
-      children: _quizRecents.map((quiz) {
-        final int score = quiz['score'] as int;
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
+  Widget _buildQuizTypeCard({
+    required String title,
+    required String description,
+    required IconData icon,
+    required Gradient gradient,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      elevation: isActive ? 3 : 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
-                spreadRadius: 1,
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isActive ? Colors.transparent : Colors.grey.shade300,
+              width: 1,
+            ),
           ),
           child: Row(
             children: [
+              // Icône avec gradient
               Container(
-                width: 8,
-                height: 40,
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
-                  color: Colors.purple,
-                  borderRadius: BorderRadius.circular(4),
+                  gradient: isActive ? gradient : null,
+                  color: isActive ? null : Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 30,
                 ),
               ),
               const SizedBox(width: 16),
+
+              // Texte
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      quiz['titre'] as String,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Text(
-                          quiz['matiere'] as String,
+                          title,
                           style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: isActive ? Colors.black87 : Colors.grey,
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        Text(
-                          '${quiz['points']} pts',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
+                        const SizedBox(width: 8),
+                        if (!isActive)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'Bientôt',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey.shade600,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
-                        ),
                       ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isActive ? Colors.grey.shade600 : Colors.grey.shade400,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getScoreColor(score).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '$score%',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: _getScoreColor(score),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    quiz['date'] as String,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ],
+
+              // Icône de navigation
+              Icon(
+                isActive ? Icons.arrow_forward_ios : Icons.lock_outline,
+                color: isActive ? Colors.grey.shade600 : Colors.grey.shade400,
+                size: 20,
               ),
             ],
           ),
-        );
-      }).toList(),
+        ),
+      ),
     );
   }
 
-  Color _getScoreColor(int score) {
-    if (score >= 80) return Colors.green;
-    if (score >= 60) return Colors.orange;
-    return Colors.red;
+  void _showComingSoonDialog(BuildContext context, String feature) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue.shade600),
+              const SizedBox(width: 12),
+              const Text('Bientôt disponible'),
+            ],
+          ),
+          content: Text(
+            '$feature sera bientôt disponible. Nous travaillons dur pour vous offrir cette fonctionnalité !',
+            style: const TextStyle(fontSize: 15),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                'Compris',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
