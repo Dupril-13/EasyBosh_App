@@ -10,7 +10,8 @@
         android:label="easybosh_v2"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:requestLegacyExternalStorage="true" > {/* Ajouté pour Android 10 (SDK 29) */}
+        android:requestLegacyExternalStorage="true"
+        android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

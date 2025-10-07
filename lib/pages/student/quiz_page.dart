@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -21,7 +22,7 @@ class _QuizPageState extends State<QuizPage> {
       'description': 'Quiz par chapitre, thème ou difficulté.',
       'temps': '10-30 min',
       'niveau': 'Tous niveaux',
-      'route': '/quiz_par_matiere_selection',
+      'route': '/quiz/selection-matiere',
     },
     {
       'nom': 'Quiz Challenge',
@@ -30,7 +31,7 @@ class _QuizPageState extends State<QuizPage> {
       'description': 'Défis ardus et quiz originaux.',
       'temps': '20-45 min',
       'niveau': 'Avancé',
-      'route': '/quiz_challenge_list',
+      'route': '/quiz/challenges',
     },
     {
       'nom': 'Révision Express',
@@ -39,7 +40,7 @@ class _QuizPageState extends State<QuizPage> {
       'description': 'Révision rapide sur un sujet/chapitre.',
       'temps': '5-15 min',
       'niveau': 'Adapté',
-      'route': '/quiz_express_placeholder',
+      'route': '/quiz/express-placeholder',
     },
     {
       'nom': 'Bilan par Niveau',
@@ -48,7 +49,7 @@ class _QuizPageState extends State<QuizPage> {
       'description': 'Maîtrise globale par niveau scolaire.',
       'temps': '30-60 min',
       'niveau': 'Spécifique',
-      'route': '/quiz_bilan_niveau_placeholder',
+      'route': '/quiz/bilan-niveau-placeholder',
     },
   ];
 
@@ -291,7 +292,7 @@ class _QuizPageState extends State<QuizPage> {
           borderRadius: BorderRadius.circular(16),
           onTap: () {
             if (route.isNotEmpty) {
-              context.go(route);
+              context.push(route);
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

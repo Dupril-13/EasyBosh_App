@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,47 +7,6 @@ class QuizResultsPage extends StatelessWidget {
 
   const QuizResultsPage({super.key, required this.results});
 
-  static Map<String, dynamic> getDummyResults() {
-    return {
-      'quizTitle': 'Quiz d\'Algèbre Avancée',
-      'score': 7,
-      'totalQuestions': 10,
-      'timeTaken': '15:32',
-      'questions': [
-        {
-          'questionText': 'Quelle est la valeur de x si 2x + 5 = 15?',
-          'userAnswer': '5',
-          'correctAnswer': '5',
-          'isCorrect': true,
-        },
-        {
-          'questionText': 'Factorisez x² - 9.',
-          'userAnswer': '(x-3)(x+2)',
-          'correctAnswer': '(x-3)(x+3)',
-          'isCorrect': false,
-        },
-        {
-          'questionText': 'Simplifiez √72.',
-          'userAnswer': '6√2',
-          'correctAnswer': '6√2',
-          'isCorrect': true,
-        },
-        {
-          'questionText': 'Résoudre l\'équation : x² - 5x + 6 = 0',
-          'userAnswer': 'x=2 ou x=3',
-          'correctAnswer': 'x=2 ou x=3',
-          'isCorrect': true,
-        },
-        {
-          'questionText': 'Quelle est la dérivée de f(x) = 3x³ - 2x + 1?',
-          'userAnswer': '9x² - 2x',
-          'correctAnswer': '9x² - 2',
-          'isCorrect': false,
-        },
-      ],
-    };
-  }
-
   AppBar _buildStandardAppBar(BuildContext context, String quizTitle) {
     return AppBar(
       title: Text(
@@ -54,7 +14,7 @@ class QuizResultsPage extends StatelessWidget {
         style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
       ),
       backgroundColor: Colors.white,
-      elevation: 1.0, // Subtile élévation
+      elevation: 1.0,
       centerTitle: true,
       leading: IconButton(
         icon: Icon(Icons.arrow_back_ios_new, color: Colors.grey[700], size: 20),
@@ -73,7 +33,7 @@ class QuizResultsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final String quizTitle = results['quizTitle'] ?? 'Résultats du Quiz';
     final int score = results['score'] ?? 0;
-    final int totalQuestions = results['totalQuestions'] ?? (results['questions'] as List?)?.length ?? 0;
+    final int totalQuestions = results['totalQuestions'] ?? 0;
     final String timeTaken = results['timeTaken'] ?? 'N/A';
     final List<Map<String, dynamic>> questions =
         List<Map<String, dynamic>>.from(results['questions'] ?? []);
@@ -84,14 +44,15 @@ class QuizResultsPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: _buildStandardAppBar(context, quizTitle), // Utilisation de l'AppBar standard
+      appBar: _buildStandardAppBar(context, quizTitle),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
             _buildSummaryCard(context, correctAnswers, totalQuestions, percentageScore, timeTaken, incorrectAnswers),
             const SizedBox(height: 32),
-            _buildSectionHeader(context, 'Détail des réponses'),
+            if (questions.isNotEmpty)
+              _buildSectionHeader(context, 'Détail des réponses'),
             const SizedBox(height: 20),
             if (questions.isEmpty)
               _buildEmptyState(context)
@@ -171,26 +132,17 @@ class QuizResultsPage extends StatelessWidget {
   }
 
   Widget _buildSummaryCard(BuildContext context, int correctAnswers, int totalQuestions, double percentageScore, String timeTaken, int incorrectAnswers) {
-    Color progressColor = _getScoreColor(percentageScore * 100); // percentageScore est de 0.0 à 1.0
+    Color progressColor = _getScoreColor(percentageScore * 100);
 
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Colors.white,
-            Colors.white.withOpacity(0.95),
-          ],
+          colors: [Colors.white, Colors.white.withOpacity(0.95)],
         ),
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, 8))],
       ),
       child: Padding(
         padding: const EdgeInsets.all(28.0),
@@ -203,7 +155,7 @@ class QuizResultsPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                'Votre Résultat', // Titre modifié
+                'Votre Résultat',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).primaryColor,
@@ -212,7 +164,7 @@ class QuizResultsPage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             SizedBox(
-              height: 12, // Hauteur de la barre de progression
+              height: 12,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: LinearProgressIndicator(
@@ -235,29 +187,11 @@ class QuizResultsPage extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildStatItem(
-                  context,
-                  'Correctes',
-                  correctAnswers.toString(),
-                  const Color(0xFF10B981),
-                  Icons.check_circle,
-                ),
+                _buildStatItem(context, 'Correctes', correctAnswers.toString(), const Color(0xFF10B981), Icons.check_circle),
                 _buildVerticalDivider(),
-                _buildStatItem(
-                  context,
-                  'Incorrectes',
-                  incorrectAnswers.toString(),
-                  const Color(0xFFEF4444),
-                  Icons.cancel,
-                ),
+                _buildStatItem(context, 'Incorrectes', incorrectAnswers.toString(), const Color(0xFFEF4444), Icons.cancel),
                 _buildVerticalDivider(),
-                _buildStatItem(
-                  context,
-                  'Temps',
-                  timeTaken,
-                  const Color(0xFF6366F1),
-                  Icons.schedule,
-                ),
+                _buildStatItem(context, 'Temps', timeTaken, const Color(0xFF6366F1), Icons.schedule),
               ],
             ),
           ],
@@ -267,17 +201,13 @@ class QuizResultsPage extends StatelessWidget {
   }
 
   Widget _buildVerticalDivider() {
-    return Container(
-      width: 1,
-      height: 50,
-      color: Colors.grey[200],
-    );
+    return Container(width: 1, height: 50, color: Colors.grey[200]);
   }
 
-  Color _getScoreColor(double percentage) { // Prend un pourcentage de 0 à 100
-    if (percentage >= 80) return const Color(0xFF10B981); // Vert
-    if (percentage >= 60) return const Color(0xFFF59E0B); // Orange
-    return const Color(0xFFEF4444); // Rouge
+  Color _getScoreColor(double percentage) {
+    if (percentage >= 80) return const Color(0xFF10B981);
+    if (percentage >= 60) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
   }
 
   Widget _buildStatItem(BuildContext context, String label, String value, Color color, IconData icon) {
@@ -285,27 +215,18 @@ class QuizResultsPage extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-          ),
+          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
           child: Icon(icon, color: color, size: 24),
         ),
         const SizedBox(height: 8),
         Text(
           value,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: color),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF64748B),
-                fontSize: 12,
-              ),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF64748B), fontSize: 12),
         ),
       ],
     );
@@ -321,16 +242,10 @@ class QuizResultsPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
         border: Border.all(
           color: isCorrect ? const Color(0xFF10B981).withOpacity(0.3) : const Color(0xFFEF4444).withOpacity(0.3),
-          width: 1.5, // bordure légèrement affinée
+          width: 1.5,
         ),
       ),
       child: Padding(
@@ -343,10 +258,7 @@ class QuizResultsPage extends StatelessWidget {
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
                   child: Text(
                     'Q$questionNumber',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -359,12 +271,7 @@ class QuizResultsPage extends StatelessWidget {
                 Expanded(
                   child: Text(
                     questionText,
-                    style: const TextStyle(
-                      fontSize: 15.5, // Taille légèrement ajustée
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF1E293B),
-                      height: 1.45, // Interligne ajusté
-                    ),
+                    style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w500, color: Color(0xFF1E293B), height: 1.45),
                   ),
                 ),
               ],
@@ -375,9 +282,7 @@ class QuizResultsPage extends StatelessWidget {
               decoration: BoxDecoration(
                 color: (isCorrect ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: (isCorrect ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withOpacity(0.2),
-                ),
+                border: Border.all(color: (isCorrect ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withOpacity(0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,21 +295,13 @@ class QuizResultsPage extends StatelessWidget {
                           color: isCorrect ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(
-                          isCorrect ? Icons.check : Icons.close,
-                          color: Colors.white,
-                          size: 16,
-                        ),
+                        child: Icon(isCorrect ? Icons.check : Icons.close, color: Colors.white, size: 16),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           'Votre réponse: $userAnswer',
-                          style: TextStyle(
-                            color: isCorrect ? const Color(0xFF059669) : const Color(0xFFDC2626), // Couleurs assombries pour contraste
-                            fontSize: 14.5, // Taille ajustée
-                            fontWeight: FontWeight.w600, // Graisse augmentée
-                          ),
+                          style: TextStyle(color: isCorrect ? const Color(0xFF059669) : const Color(0xFFDC2626), fontSize: 14.5, fontWeight: FontWeight.w600),
                         ),
                       ),
                     ],
@@ -413,26 +310,15 @@ class QuizResultsPage extends StatelessWidget {
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
                       child: Row(
                         children: [
-                          const Icon(
-                            Icons.lightbulb_outline,
-                            color: Color(0xFF059669),
-                            size: 18,
-                          ),
+                          const Icon(Icons.lightbulb_outline, color: Color(0xFF059669), size: 18),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Réponse correcte: $correctAnswer',
-                              style: const TextStyle(
-                                color: Color(0xFF059669), // Couleur assombrie
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: const TextStyle(color: Color(0xFF059669), fontSize: 14.5, fontWeight: FontWeight.w600),
                             ),
                           ),
                         ],
@@ -454,33 +340,16 @@ class QuizResultsPage extends StatelessWidget {
         Expanded(
           child: Container(
             height: 56,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Theme.of(context).primaryColor, width: 1.5), // Largeur de bordure ajustée
-            ),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: Theme.of(context).primaryColor, width: 1.5)),
             child: OutlinedButton.icon(
-              icon: Icon(Icons.refresh_rounded, color: Theme.of(context).primaryColor, size: 22), // Taille icône ajustée
-              label: Text('Recommencer', style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold, fontSize: 15)), // Taille police ajustée
+              icon: Icon(Icons.refresh_rounded, color: Theme.of(context).primaryColor, size: 22),
+              label: Text('Recommencer', style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold, fontSize: 15)),
               style: OutlinedButton.styleFrom(
-                side: BorderSide.none, // La bordure est déjà sur le Container
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14), // Doit correspondre au Container ou être légèrement inférieur
-                ),
+                side: BorderSide.none,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Fonctionnalité Recommencer bientôt disponible!'),
-                    backgroundColor: Theme.of(context).primaryColor,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    margin: const EdgeInsets.all(12),
-                  ),
-                );
-              },
+              onPressed: () => context.pop(), // Simple pop for now
             ),
           ),
         ),
@@ -490,43 +359,23 @@ class QuizResultsPage extends StatelessWidget {
             height: 56,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).primaryColor,
-                  Theme.of(context).primaryColor.withOpacity(0.8),
-                ],
+                colors: [Theme.of(context).primaryColor, Theme.of(context).primaryColor.withOpacity(0.8)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).primaryColor.withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: [BoxShadow(color: Theme.of(context).primaryColor.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
             ),
             child: ElevatedButton.icon(
               icon: const Icon(Icons.home_rounded, color: Colors.white, size: 22),
-              label: const Text(
-                'Accueil Quiz',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
+              label: const Text('Accueil Quiz', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 shadowColor: Colors.transparent,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              onPressed: () {
-                context.go('/quiz');
-              },
+              onPressed: () => context.go('/quiz'),
             ),
           ),
         ),

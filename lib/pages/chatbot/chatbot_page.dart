@@ -1,243 +1,78 @@
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart'; // Import pour le formatage de date
+import 'package:intl/intl.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 
-// Modèle simple pour un message de chat
-class ChatMessage {
-  final String text;
-  final bool isUserMessage;
-  final DateTime timestamp;
+import '../../providers/chat_provider.dart';
+import '../../models/message_model.dart';
 
-  ChatMessage({
-    required this.text,
-    required this.isUserMessage,
-    required this.timestamp,
-  });
-}
-
-// Modèle simple pour une conversation (pour le Drawer)
-class Conversation {
-  final String id;
-  String title; // Peut être modifié si la conversation est renommée
-  DateTime lastActivity;
-  String lastMessageSnippet; // Pour afficher un aperçu
-
-  Conversation({
-    required this.id,
-    required this.title,
-    required this.lastActivity,
-    this.lastMessageSnippet = "Aucun message récent",
-  });
-}
-
-class ChatbotPage extends StatefulWidget {
+class ChatbotPage extends ConsumerStatefulWidget {
   const ChatbotPage({super.key});
 
   @override
-  State<ChatbotPage> createState() => _ChatbotPageState();
+  ConsumerState<ChatbotPage> createState() => _ChatbotPageState();
 }
 
-class _ChatbotPageState extends State<ChatbotPage> {
+class _ChatbotPageState extends ConsumerState<ChatbotPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  List<ChatMessage> _currentMessages = [
-    ChatMessage(
-        text:
-        'Bonjour ! Je suis EasyBot. Comment puis-je vous aider aujourd\'hui ?',
-        isUserMessage: false,
-        timestamp: DateTime.now().subtract(const Duration(minutes: 2))),
-    ChatMessage(
-        text: 'J\'aimerais des informations sur les quiz de mathématiques.',
-        isUserMessage: true,
-        timestamp: DateTime.now().subtract(const Duration(minutes: 1))),
-    ChatMessage(
-        text:
-        'Bien sûr ! Nous avons des quiz d\'algèbre, de géométrie et d\'analyse. Souhaitez-vous que je vous montre la liste ?',
-        isUserMessage: false,
-        timestamp: DateTime.now()),
-  ];
-
-  final List<Conversation> _conversations = [
-    Conversation(
-        id: '1',
-        title: 'Quiz de Mathématiques',
-        lastActivity: DateTime.now().subtract(const Duration(hours: 1)),
-        lastMessageSnippet: "Ok, quels types de quiz sont dispo ?"),
-    Conversation(
-        id: '2',
-        title: 'Aide sur les épreuves de Physique Mécanique et Ondes Progressives',
-        lastActivity: DateTime.now().subtract(const Duration(days: 1)),
-        lastMessageSnippet: "Merci beaucoup pour votre aide !"),
-    Conversation(
-        id: '3',
-        title: 'Discussion Générale',
-        lastActivity: DateTime.now().subtract(const Duration(days: 3)),
-        lastMessageSnippet: "C'est noté."),
-  ];
-
-  String _activeConversationId = '0';
-  String _currentChatTitle = "EasyBot";
-
   @override
-  void initState() {
-    super.initState();
-    if (_conversations.isNotEmpty) {
-      _currentChatTitle = "EasyBot"; // Titre par défaut
-    } else {
-      _startNewConversation(initialLoad: true);
-    }
-  }
-
-  void _updateConversationActivity(String conversationId, String lastMessage) {
-    try {
-      final conversation =
-      _conversations.firstWhere((conv) => conv.id == conversationId);
-      conversation.lastActivity = DateTime.now();
-      conversation.lastMessageSnippet = lastMessage.length > 30
-          ? '${lastMessage.substring(0, 30)}...'
-          : lastMessage;
-      _conversations.sort((a, b) => b.lastActivity.compareTo(a.lastActivity));
-    } catch (e) {
-      // Conversation non trouvée
-    }
+  void dispose() {
+    _textController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _handleSubmitted(String text) {
-    _textController.clear();
     if (text.trim().isEmpty) return;
+    _textController.clear();
 
-    final userMessage =
-    ChatMessage(text: text, isUserMessage: true, timestamp: DateTime.now());
-    setState(() {
-      _currentMessages.add(userMessage);
-      if (_activeConversationId != '0') {
-        _updateConversationActivity(_activeConversationId, text);
-      }
-    });
+    final chatNotifier = ref.read(chatProvider.notifier);
+    final activeConversationId = ref.read(chatProvider).activeConversationId;
 
-    Future.delayed(const Duration(milliseconds: 500), () {
-      final botResponseText =
-          'Je traite votre demande : "$text". Actuellement, je suis en phase de développement pour répondre plus précisément !';
-      final botMessage = ChatMessage(
-          text: botResponseText,
-          isUserMessage: false,
-          timestamp: DateTime.now());
-      setState(() {
-        _currentMessages.add(botMessage);
-        if (_activeConversationId != '0') {
-          _updateConversationActivity(_activeConversationId, botResponseText);
-        }
-        _scrollToBottom();
-      });
-    });
-    _scrollToBottom();
+    if (activeConversationId != null) {
+      chatNotifier.sendMessage(activeConversationId, text.trim());
+    } else {
+      // Crée un titre court pour la nouvelle conversation
+      final title = text.trim().length > 30 ? "${text.trim().substring(0, 30)}..." : text.trim();
+      chatNotifier.createConversation(title, text.trim());
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
   void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  void _loadConversation(Conversation conversation, {bool initialLoad = false}) {
-    if (!initialLoad && Navigator.canPop(context)) Navigator.of(context).pop();
-    setState(() {
-      _activeConversationId = conversation.id;
-      _currentChatTitle = conversation.title;
-      _currentMessages = [
-        ChatMessage(
-            text: 'Conversation "${conversation.title}" chargée.',
-            isUserMessage: false,
-            timestamp: DateTime.now()),
-        ChatMessage(
-            text: conversation.lastMessageSnippet,
-            isUserMessage: false,
-            timestamp: DateTime.now().add(const Duration(seconds: 1))),
-      ];
-      _updateConversationActivity(conversation.id, _currentMessages.last.text);
-      _scrollToBottom();
-    });
-    // SnackBar supprimé ici
-  }
-
-  Future<void> _showDeleteConfirmationDialog(Conversation conversation) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Confirmer la suppression'),
-          content: Text("Voulez-vous vraiment supprimer la conversation \"${conversation.title}\" ?"),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Annuler'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-            ),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Supprimer'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true) {
-      setState(() {
-        _conversations.removeWhere((conv) => conv.id == conversation.id);
-        if (_activeConversationId == conversation.id) {
-          if (_conversations.isNotEmpty) {
-            _loadConversation(_conversations.first, initialLoad: true);
-          } else {
-            _startNewConversation(initialLoad: true);
-          }
-        }
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Conversation "${conversation.title}" supprimée'),
-            duration: const Duration(seconds: 2)),
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
       );
     }
   }
 
-  void _startNewConversation({bool initialLoad = false}) {
-    if (!initialLoad && Navigator.canPop(context)) Navigator.of(context).pop();
-    final newId = DateTime.now().millisecondsSinceEpoch.toString();
-    final newConversation = Conversation(
-        id: newId,
-        title: "Nouvelle Conversation - ${DateFormat('dd/MM HH:mm').format(DateTime.now())}",
-        lastActivity: DateTime.now(),
-        lastMessageSnippet: "Comment puis-je vous aider ?");
-    setState(() {
-      _activeConversationId = newId;
-      _currentChatTitle = newConversation.title;
-      _currentMessages = [
-        ChatMessage(
-            text: 'Nouvelle conversation. Comment puis-je vous aider ?',
-            isUserMessage: false,
-            timestamp: DateTime.now()),
-      ];
-      _conversations.insert(0, newConversation);
-      _updateConversationActivity(newId, _currentMessages.first.text);
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    // final Color darkDividerColor = Theme.of(context).primaryColor; // Plus utilisé
+    final chatState = ref.watch(chatProvider);
+    final chatNotifier = ref.read(chatProvider.notifier);
+
+    ref.listen(chatProvider.select((value) => value.messages.length), (_, __) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    });
+
+    String currentTitle = "EasyBot";
+    if (chatState.activeConversationId != null) {
+      try {
+        final activeConversation = chatState.conversations.firstWhere((c) => c.id == chatState.activeConversationId);
+        currentTitle = activeConversation.title;
+      } catch (e) {
+        currentTitle = "Conversation...";
+      }
+    }
 
     return Scaffold(
       key: _scaffoldKey,
@@ -247,23 +82,19 @@ class _ChatbotPageState extends State<ChatbotPage> {
         foregroundColor: Colors.white,
         elevation: 1.0,
         title: Text(
-          _currentChatTitle,
-          style: const TextStyle(
-              fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18),
+          currentTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18),
           overflow: TextOverflow.ellipsis,
         ),
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.history_rounded, color: Colors.white, size: 26),
+          icon: const Icon(Iconsax.message_search, color: Colors.white, size: 26),
           tooltip: 'Historique des conversations',
-          onPressed: () {
-            _scaffoldKey.currentState?.openDrawer();
-          },
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new,
-                color: Colors.white, size: 20),
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
             tooltip: 'Retour',
             onPressed: () {
               if (context.canPop()) {
@@ -275,109 +106,139 @@ class _ChatbotPageState extends State<ChatbotPage> {
           ),
         ],
       ),
-      drawer: Drawer(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0), // Coins moins arrondis
-        ),
-        child: Column(
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
-              ),
-              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0), // Padding inférieur ajusté pour espacement
-              child: const Center(
-                child: Text(
-                  'Historique',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ),
-            ),
-            // AUCUN Divider ici
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
-              leading: Icon(Icons.add_comment_outlined,
-                  color: Theme.of(context).primaryColorDark ?? Theme.of(context).primaryColor, size: 24),
-              title: const Text(
-                'Nouvelle conversation',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
-              onTap: _startNewConversation,
-            ),
+      drawer: _buildDrawer(context, ref),
+      body: Column(
+        children: [
+          if (chatState.isLoading && chatState.messages.isEmpty)
+            const Expanded(child: Center(child: CircularProgressIndicator()))
+          else if (chatState.messages.isEmpty)
+             Expanded(child: _buildWelcomeMessage())
+          else
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                itemCount: _conversations.length,
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+                itemCount: chatState.messages.length + (chatState.isLoading ? 1 : 0), // +1 for loading indicator
                 itemBuilder: (context, index) {
-                  final conversation = _conversations[index];
-                  return ListTile(
-                    contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 20.0, vertical: 4.0),
-                    leading: const Icon(Icons.chat_outlined,
-                        size: 22, color: Colors.black54),
-                    title: Text(
-                      conversation.title,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w500, fontSize: 14.5),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      '${conversation.lastMessageSnippet} - ${DateFormat('dd/MM, HH:mm').format(conversation.lastActivity)}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline,
-                          color: Colors.grey, size: 22),
-                      tooltip: 'Supprimer la conversation',
-                      onPressed: () => _showDeleteConfirmationDialog(conversation),
-                    ),
-                    onTap: () => _loadConversation(conversation),
-                    selected: _activeConversationId == conversation.id,
-                    selectedTileColor: Colors.grey[200],
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.zero,
-                    ),
-                  );
+                  if (chatState.isLoading && index == chatState.messages.length) {
+                    return _buildTypingIndicator();
+                  }
+                  final message = chatState.messages[index];
+                  return _buildMessageBubble(message);
                 },
               ),
             ),
-            const SizedBox(height: 8.0)
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
-              itemCount: _currentMessages.length,
-              itemBuilder: (context, index) {
-                final message = _currentMessages[index];
-                return _buildMessageBubble(message);
-              },
-            ),
-          ),
           _buildMessageComposer(),
         ],
       ),
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage message) {
-    final bool isUser = message.isUserMessage;
-    final alignment =
-    isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
-    final bubbleColor =
-    isUser ? Theme.of(context).primaryColor.withOpacity(0.9) : Colors.white;
+  Widget _buildWelcomeMessage() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Iconsax.message_question, size: 80, color: Colors.grey[300]),
+            const SizedBox(height: 24),
+            const Text(
+              'Bonjour !', 
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black54),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Je suis EasyBot, votre assistant pédagogique. Posez-moi une question pour commencer.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypingIndicator() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 100),
+          padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 16.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(18),
+              topRight: Radius.circular(18),
+              bottomLeft: Radius.circular(4),
+              bottomRight: Radius.circular(18),
+            ),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), spreadRadius: 1, blurRadius: 3, offset: const Offset(0, 1))],
+          ),
+          child: const SizedBox(height: 20, child: CircularProgressIndicator(strokeWidth: 2.0)), // Placeholder for a real typing indicator
+        ),
+      ),
+    );
+  }
+
+  Drawer _buildDrawer(BuildContext context, WidgetRef ref) {
+    final chatState = ref.watch(chatProvider);
+    final chatNotifier = ref.read(chatProvider.notifier);
+
+    return Drawer(
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(topRight: Radius.circular(20), bottomRight: Radius.circular(20))),
+      child: Column(
+        children: [
+          DrawerHeader(
+            decoration: BoxDecoration(color: Theme.of(context).primaryColor),
+            child: const Center(
+              child: Text('Historique', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+            ),
+          ),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+            leading: Icon(Iconsax.add_square, color: Theme.of(context).primaryColor, size: 24),
+            title: const Text('Nouvelle conversation', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            onTap: () {
+              chatNotifier.fetchMessages(''); // Clear current conversation
+              Navigator.of(context).pop();
+            },
+          ),
+          const Divider(height: 1, indent: 20, endIndent: 20),
+          Expanded(
+            child: chatState.isLoading && chatState.conversations.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    itemCount: chatState.conversations.length,
+                    itemBuilder: (context, index) {
+                      final conversation = chatState.conversations[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 4.0),
+                        leading: const Icon(Iconsax.message_2, size: 22, color: Colors.black54),
+                        title: Text(conversation.title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(DateFormat('dd/MM, HH:mm').format(conversation.updatedAt), style: TextStyle(fontSize: 12, color: Colors.grey[600]), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        onTap: () {
+                          chatNotifier.fetchMessages(conversation.id);
+                          Navigator.of(context).pop();
+                        },
+                        selected: chatState.activeConversationId == conversation.id,
+                        selectedTileColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(MessageModel message) {
+    final bool isUser = message.role == MessageRole.user;
+    final alignment = isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final bubbleColor = isUser ? Theme.of(context).primaryColor : Colors.white;
     final textColor = isUser ? Colors.white : Colors.black87;
     final borderRadius = BorderRadius.only(
       topLeft: const Radius.circular(18),
@@ -392,33 +253,18 @@ class _ChatbotPageState extends State<ChatbotPage> {
         crossAxisAlignment: alignment,
         children: [
           Container(
-            constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75),
-            padding:
-            const EdgeInsets.symmetric(vertical: 10.0, horizontal: 14.0),
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+            padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 14.0),
             decoration: BoxDecoration(
                 color: bubbleColor,
                 borderRadius: borderRadius,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    spreadRadius: 1,
-                    blurRadius: 3,
-                    offset: const Offset(0, 1),
-                  )
-                ]),
-            child: Text(
-              message.text,
-              style: TextStyle(color: textColor, fontSize: 15.5, height: 1.3),
-            ),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), spreadRadius: 1, blurRadius: 3, offset: const Offset(0, 1))]),
+            child: Text(message.content, style: TextStyle(color: textColor, fontSize: 15.5, height: 1.3)),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: Text(
-              DateFormat('HH:mm').format(message.timestamp),
-              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-            ),
+            child: Text(DateFormat('HH:mm').format(message.createdAt), style: TextStyle(fontSize: 10, color: Colors.grey[600])),
           ),
         ],
       ),
@@ -430,13 +276,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            offset: const Offset(0, -2),
-            blurRadius: 5,
-            color: Colors.grey.withOpacity(0.1),
-          ),
-        ],
+        boxShadow: [BoxShadow(offset: const Offset(0, -2), blurRadius: 5, color: Colors.grey.withOpacity(0.1))],
       ),
       child: SafeArea(
         child: Row(
@@ -447,24 +287,17 @@ class _ChatbotPageState extends State<ChatbotPage> {
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   hintText: 'Message à EasyBot...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(25.0),
-                    borderSide: BorderSide.none,
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(25.0), borderSide: BorderSide.none),
                   filled: true,
                   fillColor: Colors.grey[100],
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16.0, vertical: 10.0),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
                 ),
                 onSubmitted: _handleSubmitted,
               ),
             ),
             const SizedBox(width: 8.0),
             Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: Theme.of(context).primaryColor, shape: BoxShape.circle),
               child: IconButton(
                 icon: const Icon(Icons.send_rounded, color: Colors.white, size: 22),
                 onPressed: () => _handleSubmitted(_textController.text),

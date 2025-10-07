@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -66,7 +67,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/staff-login',
+    initialLocation: '/get-started',
     debugLogDiagnostics: true,
     refreshListenable: authStateNotifierForGoRouter,
     redirect: (BuildContext context, GoRouterState state) {
@@ -202,13 +203,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Routes Quiz
       GoRoute(path: '/quiz', name: 'quiz', builder: (context, state) => const QuizPage()),
       GoRoute(path: '/quiz/selection-matiere', name: 'quizMatiereSelection', builder: (context, state) => const QuizMatiereSelectionPage()),
-      GoRoute(path: '/quiz/list-par-matiere/:matiereId', name: 'quizListParMatiere', builder: (context, state) => QuizListByMatierePage(matiereNom: state.pathParameters['matiereId']!)),
+      GoRoute(
+        path: '/quiz/list-par-matiere/:matiereId',
+        name: 'quizListParMatiere',
+        builder: (context, state) {
+          final matiereId = int.tryParse(state.pathParameters['matiereId'] ?? '');
+          if (matiereId == null) {
+            return const Scaffold(body: Center(child: Text('ID de matière invalide.')));
+          }
+          return QuizListByMatierePage(matiereId: matiereId);
+        },
+      ),
       GoRoute(
         path: '/quiz/play/:quizId',
         name: 'quizPlay',
         builder: (context, state) {
-          if (state.extra is Map<String, dynamic>) return QuizPlayPage(quizDetails: state.extra as Map<String, dynamic>);
-          return const Scaffold(body: Center(child: Text("Détails du quiz non fournis correctement.")));
+          final quizId = int.tryParse(state.pathParameters['quizId'] ?? '');
+          if (quizId == null) {
+            return const Scaffold(body: Center(child: Text('ID de quiz invalide.')));
+          }
+          return QuizPlayPage(quizId: quizId);
         },
       ),
       GoRoute(path: '/quiz/express-placeholder', name: 'quizExpressPlaceholder', builder: (context, state) => const QuizExpressPlaceholderPage()),

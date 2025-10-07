@@ -1,3 +1,4 @@
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Configuration centrale de l'application
@@ -10,6 +11,11 @@ class AppConfig {
   // Configuration Supabase
   static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';
   static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+
+  // API Keys
+  static String get geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
+  static String get openaiApiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
+  static String get sentryDsn => dotenv.env['SENTRY_DSN'] ?? '';
 
   // Configuration environnement
   static String get environment => dotenv.env['APP_ENVIRONMENT'] ?? 'development';
@@ -29,10 +35,6 @@ class AppConfig {
   // OAuth Configuration
   static String get googleClientId => dotenv.env['GOOGLE_CLIENT_ID'] ?? '';
   static String get appleClientId => dotenv.env['APPLE_CLIENT_ID'] ?? '';
-
-  // API Keys
-  static String get openaiApiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
-  static String get sentryDsn => dotenv.env['SENTRY_DSN'] ?? '';
 
   // Base de données
   static int get dbTimeout => int.tryParse(dotenv.env['DB_TIMEOUT'] ?? '30000') ?? 30000;
