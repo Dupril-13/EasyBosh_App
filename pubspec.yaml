@@ -22,7 +22,7 @@ dependencies:
   # Backend
   supabase_flutter: ^2.5.0
   flutter_dotenv: ^6.0.0
-  google_generative_ai: ^0.1.0 # Ajouté pour Gemini
+  google_generative_ai: ^0.2.0 # Mise à jour vers la dernière version
 
   # State Management & Navigation
   go_router: ^16.2.4

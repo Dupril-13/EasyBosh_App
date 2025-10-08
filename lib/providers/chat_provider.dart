@@ -2,6 +2,7 @@
 import 'dart:async';
 
 import 'package:easybosh_v2/core/config/app_config.dart';
+import 'package:easybosh_v2/core/config/env.dart';
 import 'package:easybosh_v2/main.dart';
 import 'package:easybosh_v2/models/conversation_model.dart';
 import 'package:easybosh_v2/models/message_model.dart';
@@ -11,6 +12,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import '../core/providers/auth_provider.dart';
+import '../models/user_model.dart';
 
 part 'chat_provider.g.dart';
 
@@ -50,29 +52,59 @@ class ChatState {
 
 @Riverpod(keepAlive: true)
 class Chat extends _$Chat {
-  late SupabaseClient _client;
-  late GenerativeModel _model;
+  late final SupabaseClient _client;
+  late final GenerativeModel _model;
   String? _userId;
 
   @override
   ChatState build() {
     _client = ref.watch(supabaseClientProvider);
-    final apiKey = AppConfig.geminiApiKey;
-
-    if (apiKey.isEmpty) {
-      print("ERREUR: Clé API Gemini non trouvée.");
+    final authState = ref.watch(authProvider);
+    if (authState is AuthAuthenticated) {
+      _userId = authState.user.uid;
+    } else {
+      _userId = null;
     }
     
-    _model = GenerativeModel(model: 'gemini-pro', apiKey: apiKey);
-
-    final authState = ref.watch(authProvider);
-    _userId = (authState is AuthAuthenticated) ? authState.user.uid : null;
-
-    if (_userId != null) {
-      Future(() => fetchConversations());
+    try {
+      _model = GenerativeModel(
+        model: 'gemini-pro',
+        apiKey: Env.geminiApiKey,
+        generationConfig: GenerationConfig(
+          temperature: 0.7,
+          maxOutputTokens: 1000,
+        ),
+      );
+      print('Modèle Gemini initialisé avec succès');
+    } catch (e) {
+      print("ERREUR: Échec de l'initialisation de l'API Gemini: $e");
+      // En cas d'échec, on initialise quand même le modèle avec une clé vide
+      // pour éviter les erreurs, mais on ne pourra pas appeler l'API
+      _model = GenerativeModel(
+        model: 'gemini-pro',
+        apiKey: 'dummy-key',
+        generationConfig: GenerationConfig(
+          temperature: 0.7,
+          maxOutputTokens: 1000,
+        ),
+      );
     }
-
+    
     return ChatState();
+  }
+
+  Future<void> deleteConversation(String conversationId) async {
+    if (_userId == null) return;
+    try {
+      await _client.from('conversations').delete().eq('id', conversationId);
+      final newConversations = state.conversations.where((c) => c.id != conversationId).toList();
+      state = state.copyWith(conversations: newConversations);
+      if (state.activeConversationId == conversationId) {
+        state = state.copyWith(messages: [], clearActiveConversation: true);
+      }
+    } catch (e) {
+      print("Erreur lors de la suppression de la conversation: $e");
+    }
   }
 
   Future<void> fetchConversations() async {
@@ -104,7 +136,6 @@ class Chat extends _$Chat {
           .select()
           .eq('conversation_id', conversationId)
           .order('created_at', ascending: true);
-
       final messages = (response as List).map((data) => MessageModel.fromMap(data)).toList();
       state = state.copyWith(messages: messages, isLoading: false);
     } catch (e) {
@@ -113,74 +144,108 @@ class Chat extends _$Chat {
   }
 
   Future<void> sendMessage(String conversationId, String content) async {
-    if (_userId == null) return;
-    state = state.copyWith(isLoading: true);
-
+    print('sendMessage called with conversationId: $conversationId, content: $content');
+    if (_userId == null) {
+      print('Error: User ID is null');
+      return;
+    }
+    
     try {
-      // 1. Sauvegarder le message de l'utilisateur
-      await _client.from('messages').insert({
-        'conversation_id': conversationId,
-        'content': content,
-        'role': 'user',
-        'user_id': _userId,
-      });
+      // Mettre à jour l'état pour indiquer le chargement
+      state = state.copyWith(isLoading: true, errorMessage: null);
 
-      // 2. Récupérer l'historique complet de la conversation
-      final historyResponse = await _client
-          .from('messages')
-          .select('role, content')
-          .eq('conversation_id', conversationId)
-          .order('created_at', ascending: true);
-      
-      final history = (historyResponse as List).map((messageData) {
-          final role = messageData['role'] as String;
-          final text = messageData['content'] as String;
-          return Content(role, [TextPart(text)]);
-      }).toList();
+      // Créer un nouveau message utilisateur
+      final userMessage = MessageModel(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        conversationId: conversationId,
+        content: content,
+        role: MessageRole.user,
+        createdAt: DateTime.now(),
+      );
 
-      // 3. Appeler Gemini avec l'historique
-      final chatSession = _model.startChat(history: history);
-      final response = await chatSession.sendMessage(Content.text(content));
-      final modelContent = response.text;
+      print('Created user message: ${userMessage.id} - ${userMessage.content}');
 
-      // 4. Sauvegarder la réponse du modèle
-      if (modelContent != null) {
-        await _client.from('messages').insert({
-          'conversation_id': conversationId,
-          'content': modelContent,
-          'role': 'model',
-          'user_id': _userId,
-        });
-      }
+      // Mettre à jour l'état avec le message de l'utilisateur
+      state = state.copyWith(
+        messages: [...state.messages, userMessage],
+      );
 
-      // 5. Rafraîchir la liste des messages pour afficher les deux nouveaux messages
-      await fetchMessages(conversationId);
+      print('State updated with user message. Messages count: ${state.messages.length}');
 
-    } catch (e) {
-      state = state.copyWith(errorMessage: e.toString(), isLoading: false);
-    } finally {
-        if(state.isLoading) {
-            state = state.copyWith(isLoading: false);
+      try {
+        String responseText;
+        
+        // Vérifier si la clé API est valide
+        if (Env.geminiApiKey.isEmpty || Env.geminiApiKey == 'dummy-key') {
+          // Réponse factice pour le débogage
+          responseText = "Bonjour ! Je suis votre assistant virtuel. Pour le moment, je suis en mode démo. "
+                       "Pour activer les réponses intelligentes, veuillez configurer une clé API Gemini valide.";
+          print('Mode démo: Utilisation d\'une réponse factice');
+        } else {
+          print('Envoi du message à Gemini...');
+          // Envoyer le message et obtenir la réponse
+          final response = await _model.generateContent([Content.text(content)]);
+          responseText = response.text ?? 'Désolé, je n\'ai pas pu générer de réponse.';
+          
+          print('Réponse reçue de Gemini: ${responseText.substring(0, responseText.length > 50 ? 50 : responseText.length)}...');
         }
+
+        // Créer le message de l'assistant
+        final assistantMessage = MessageModel(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          conversationId: conversationId,
+          content: responseText,
+          role: MessageRole.model,
+          createdAt: DateTime.now(),
+        );
+
+        print('Created assistant message: ${assistantMessage.id}');
+
+        // Mettre à jour l'état avec la réponse de l'assistant
+        state = state.copyWith(
+          messages: [...state.messages, assistantMessage],
+          isLoading: false,
+        );
+
+        print('State updated with assistant message. Messages count: ${state.messages.length}');
+      } catch (e) {
+        print('Error generating response: $e');
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'Erreur lors de la génération de la réponse: $e',
+        );
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Erreur lors de l\'envoi du message: $e',
+      );
     }
   }
 
   Future<void> createConversation(String title, String firstMessage) async {
     if (_userId == null) return;
+    
     state = state.copyWith(isLoading: true);
     try {
-      final conversationResponse = await _client.from('conversations').insert({
-        'user_id': _userId,
-        'title': title,
-      }).select().single();
-
+      final conversationResponse = await _client
+          .from('conversations')
+          .insert({'user_id': _userId, 'title': title})
+          .select()
+          .single();
+          
       final newConversation = ConversationModel.fromMap(conversationResponse);
-      state = state.copyWith(conversations: [newConversation, ...state.conversations], activeConversationId: newConversation.id);
+      state = state.copyWith(
+        conversations: [newConversation, ...state.conversations],
+        activeConversationId: newConversation.id,
+      );
       
       await sendMessage(newConversation.id, firstMessage);
-
     } catch (e) {
-      state = state.copyWith(errorMessage: e.toString(), isLoading: false);
+      state = state.copyWith(
+        errorMessage: 'Erreur lors de la création de la conversation: $e',
+        isLoading: false,
+      );
     }
   }
 }
