@@ -1,4 +1,4 @@
-# EasyBosh V2 🎓
+# EasyBosh Soutenance 🎓
 
 Application mobile éducative pour les élèves en classe d'examen au Cameroun.
 
